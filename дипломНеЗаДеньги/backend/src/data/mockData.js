@@ -37,9 +37,9 @@ const stores = [
 ];
 
 let promoCodes = [
-  { id: 1, code: 'WELCOME10', discount_percent: 10, discount_amount: null, min_order_amount: 20, max_uses: 100, current_uses: 12, is_active: true, valid_from: '2024-01-01', valid_until: '2025-12-31', created_at: '2024-01-01T00:00:00Z' },
-  { id: 2, code: 'SUMMER25', discount_percent: 25, discount_amount: null, min_order_amount: 50, max_uses: 50, current_uses: 5, is_active: true, valid_from: '2024-06-01', valid_until: '2025-08-31', created_at: '2024-06-01T00:00:00Z' },
-  { id: 3, code: 'BOOK5', discount_percent: null, discount_amount: 5, min_order_amount: 30, max_uses: 200, current_uses: 45, is_active: true, valid_from: '2024-01-01', valid_until: '2025-12-31', created_at: '2024-03-15T00:00:00Z' },
+  { id: 1, code: 'WELCOME10', discount_percent: 10, discount_amount: null, min_order_amount: 20, max_uses: 100, current_uses: 12, is_active: true, valid_from: '2024-01-01', valid_until: '2027-12-31', created_at: '2024-01-01T00:00:00Z' },
+  { id: 2, code: 'SUMMER25', discount_percent: 25, discount_amount: null, min_order_amount: 50, max_uses: 50, current_uses: 5, is_active: true, valid_from: '2024-06-01', valid_until: '2027-08-31', created_at: '2024-06-01T00:00:00Z' },
+  { id: 3, code: 'BOOK5', discount_percent: null, discount_amount: 5, min_order_amount: 30, max_uses: 200, current_uses: 45, is_active: true, valid_from: '2024-01-01', valid_until: '2027-12-31', created_at: '2024-03-15T00:00:00Z' },
 ];
 
 let users = [];
