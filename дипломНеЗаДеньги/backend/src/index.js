@@ -24,6 +24,22 @@ const auth = (req, res, next) => {
   }
 };
 
+const adminAuth = (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'Не авторизован' });
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.userId = decoded.id;
+    const user = mockData.getUserById(decoded.id);
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ error: 'Доступ запрещён' });
+    }
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Не авторизован' });
+  }
+};
+
 app.get('/api/books', (req, res) => {
   const { category, search, sort, minPrice, maxPrice, limit = 50, offset = 0 } = req.query;
   let result = [...mockData.books];
@@ -377,6 +393,152 @@ app.get('/api/stores/:id', (req, res) => {
   const store = mockData.stores.find(s => s.id === Number(req.params.id));
   if (!store) return res.status(404).json({ error: 'Магазин не найден' });
   res.json(store);
+});
+
+// === Reviews ===
+app.get('/api/books/:id/reviews', (req, res) => {
+  const reviews = mockData.getReviewsByBook(Number(req.params.id));
+  const enriched = reviews.map(r => {
+    const user = mockData.getUserById(r.user_id);
+    return { ...r, user_name: user ? user.name : 'Пользователь' };
+  });
+  res.json(enriched);
+});
+
+app.post('/api/books/:id/reviews', auth, (req, res) => {
+  const { rating, comment } = req.body;
+  if (!rating || rating < 1 || rating > 5) {
+    return res.status(400).json({ error: 'Рейтинг должен быть от 1 до 5' });
+  }
+  const user = mockData.getUserById(req.userId);
+  const review = mockData.createReview({
+    book_id: Number(req.params.id),
+    user_id: req.userId,
+    rating: Number(rating),
+    comment: comment || '',
+  });
+  res.status(201).json({ ...review, user_name: user ? user.name : 'Пользователь' });
+});
+
+// === Promo Codes (public) ===
+app.post('/api/promo/validate', auth, (req, res) => {
+  const { code, orderAmount } = req.body;
+  if (!code) return res.status(400).json({ error: 'Введите промокод' });
+  const promo = mockData.getPromoByCode(code);
+  if (!promo) return res.status(404).json({ error: 'Промокод не найден' });
+  if (!promo.is_active) return res.status(400).json({ error: 'Промокод неактивен' });
+  if (promo.current_uses >= promo.max_uses) return res.status(400).json({ error: 'Промокод исчерпан' });
+  const now = new Date();
+  if (new Date(promo.valid_from) > now || new Date(promo.valid_until) < now) {
+    return res.status(400).json({ error: 'Промокод просрочен' });
+  }
+  if (orderAmount && orderAmount < promo.min_order_amount) {
+    return res.status(400).json({ error: `Минимальная сумма заказа: ${promo.min_order_amount} р.` });
+  }
+  let discount = 0;
+  if (promo.discount_percent) {
+    discount = orderAmount ? (orderAmount * promo.discount_percent / 100) : promo.discount_percent;
+  } else if (promo.discount_amount) {
+    discount = promo.discount_amount;
+  }
+  res.json({ valid: true, discount: Number(discount.toFixed(2)), promo });
+});
+
+// === Admin API ===
+app.get('/api/admin/stats', adminAuth, (req, res) => {
+  res.json(mockData.getStats());
+});
+
+app.get('/api/admin/users', adminAuth, (req, res) => {
+  const users = mockData.getUsers().map(u => {
+    const { password_hash, ...safe } = u;
+    return safe;
+  });
+  res.json(users);
+});
+
+app.put('/api/admin/users/:id/role', adminAuth, (req, res) => {
+  const { role } = req.body;
+  const user = mockData.updateUser(Number(req.params.id), { role });
+  if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+  const { password_hash, ...safe } = user;
+  res.json(safe);
+});
+
+app.delete('/api/admin/users/:id', adminAuth, (req, res) => {
+  mockData.deleteUser(Number(req.params.id));
+  res.json({ message: 'Пользователь удалён' });
+});
+
+app.get('/api/admin/orders', adminAuth, (req, res) => {
+  const orders = mockData.getAllOrders();
+  const enriched = orders.map(o => {
+    const user = mockData.getUserById(o.user_id);
+    return { ...o, user_name: user ? user.name : 'Удалённый пользователь', user_email: user ? user.email : '' };
+  });
+  res.json(enriched);
+});
+
+app.patch('/api/admin/orders/:id/status', adminAuth, (req, res) => {
+  const { status } = req.body;
+  const order = mockData.updateOrderStatus(Number(req.params.id), status);
+  if (!order) return res.status(404).json({ error: 'Заказ не найден' });
+  res.json(order);
+});
+
+app.get('/api/admin/books', adminAuth, (req, res) => {
+  res.json(mockData.books);
+});
+
+app.post('/api/admin/books', adminAuth, (req, res) => {
+  const book = mockData.createBook(req.body);
+  res.status(201).json(book);
+});
+
+app.put('/api/admin/books/:id', adminAuth, (req, res) => {
+  const book = mockData.updateBook(Number(req.params.id), req.body);
+  if (!book) return res.status(404).json({ error: 'Книга не найдена' });
+  res.json(book);
+});
+
+app.delete('/api/admin/books/:id', adminAuth, (req, res) => {
+  mockData.deleteBook(Number(req.params.id));
+  res.json({ message: 'Книга удалена' });
+});
+
+app.get('/api/admin/promo', adminAuth, (req, res) => {
+  res.json(mockData.getPromoCodes());
+});
+
+app.post('/api/admin/promo', adminAuth, (req, res) => {
+  const promo = mockData.createPromo(req.body);
+  res.status(201).json(promo);
+});
+
+app.put('/api/admin/promo/:id', adminAuth, (req, res) => {
+  const promo = mockData.updatePromo(Number(req.params.id), req.body);
+  if (!promo) return res.status(404).json({ error: 'Промокод не найден' });
+  res.json(promo);
+});
+
+app.delete('/api/admin/promo/:id', adminAuth, (req, res) => {
+  mockData.deletePromo(Number(req.params.id));
+  res.json({ message: 'Промокод удалён' });
+});
+
+app.get('/api/admin/reviews', adminAuth, (req, res) => {
+  const reviews = mockData.getAllReviews();
+  const enriched = reviews.map(r => {
+    const user = mockData.getUserById(r.user_id);
+    const book = mockData.books.find(b => b.id === r.book_id);
+    return { ...r, user_name: user ? user.name : 'Удалён', book_title: book ? book.title : 'Удалена' };
+  });
+  res.json(enriched);
+});
+
+app.delete('/api/admin/reviews/:id', adminAuth, (req, res) => {
+  mockData.deleteReview(Number(req.params.id));
+  res.json({ message: 'Отзыв удалён' });
 });
 
 app.get('/api/health', (req, res) => {
