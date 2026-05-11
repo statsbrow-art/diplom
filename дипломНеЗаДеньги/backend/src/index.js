@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const pool = require('./config/db');
+const initDatabase = require('./config/initDb');
 
 const app = express();
 
@@ -622,7 +623,16 @@ app.get('/api/health', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
-  console.log('Server running on http://localhost:' + PORT);
-  console.log('Using PostgreSQL database');
+
+initDatabase().then(() => {
+  app.listen(PORT, () => {
+    console.log('Server running on http://localhost:' + PORT);
+    console.log('Using PostgreSQL database');
+  });
+}).catch(err => {
+  console.error('Failed to initialize database:', err);
+  app.listen(PORT, () => {
+    console.log('Server running on http://localhost:' + PORT);
+    console.log('WARNING: Database initialization failed');
+  });
 });
