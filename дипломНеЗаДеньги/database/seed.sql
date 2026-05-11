@@ -51,11 +51,11 @@ INSERT INTO books (title, author_id, category_id, publisher_id, price, old_price
 ('Норвежский лес', 14, 1, 2, 14.50, NULL, 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=300&h=400&fit=crop', 'Роман о любви и потере', 2024, 384, 4.5, 40, 75),
 ('Три товарища', 15, 1, 1, 13.20, 15.50, 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=300&h=400&fit=crop', 'Роман о дружбе и любви', 2023, 480, 4.8, 55, 125);
 
--- Добавление пользователей
+-- Добавление пользователей (пароль для всех: admin123)
 INSERT INTO users (email, password_hash, name, phone, role) VALUES
-('admin@bookstore.by', '$2a$10$rQnM1JwQyTxH8GpQk5dqzOoNvnDRnZbvQK3.vG8zY.v0TF4/DPVRC', 'Администратор', '+375291234567', 'admin'),
-('user@example.com', '$2a$10$rQnM1JwQyTxH8GpQk5dqzOoNvnDRnZbvQK3.vG8zY.v0TF4/DPVRC', 'Иван Петров', '+375291111111', 'customer'),
-('maria@example.com', '$2a$10$rQnM1JwQyTxH8GpQk5dqzOoNvnDRnZbvQK3.vG8zY.v0TF4/DPVRC', 'Мария Сидорова', '+375292222222', 'customer');
+('admin@bookstore.by', '$2a$10$7FKi.Wn7PUXRhPiXMkEXCeMc3YIFOmUA0oQjoUVMUsfhU6l7NCh66', 'Администратор', '+375291234567', 'admin'),
+('user@example.com', '$2a$10$7FKi.Wn7PUXRhPiXMkEXCeMc3YIFOmUA0oQjoUVMUsfhU6l7NCh66', 'Иван Петров', '+375291111111', 'customer'),
+('maria@example.com', '$2a$10$7FKi.Wn7PUXRhPiXMkEXCeMc3YIFOmUA0oQjoUVMUsfhU6l7NCh66', 'Мария Сидорова', '+375292222222', 'customer');
 
 -- Добавление магазинов
 INSERT INTO stores (name, city, address, phone, working_hours, latitude, longitude) VALUES

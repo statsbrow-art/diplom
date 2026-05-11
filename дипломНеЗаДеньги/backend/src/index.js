@@ -2,551 +2,627 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+require('dotenv').config();
 
-const mockData = require('./data/mockData');
+const pool = require('./config/db');
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-const JWT_SECRET = 'bookstore-secret-key-2024';
+const JWT_SECRET = process.env.JWT_SECRET || 'bookstore-secret-key-2024';
 
 const auth = (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'Не авторизован' });
+    if (!token) return res.status(401).json({ error: '\u041d\u0435 \u0430\u0432\u0442\u043e\u0440\u0438\u0437\u043e\u0432\u0430\u043d' });
     const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.id;
     next();
   } catch (error) {
-    res.status(401).json({ error: 'Не авторизован' });
+    res.status(401).json({ error: '\u041d\u0435 \u0430\u0432\u0442\u043e\u0440\u0438\u0437\u043e\u0432\u0430\u043d' });
   }
 };
 
-const adminAuth = (req, res, next) => {
+const adminAuth = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'Не авторизован' });
+    if (!token) return res.status(401).json({ error: '\u041d\u0435 \u0430\u0432\u0442\u043e\u0440\u0438\u0437\u043e\u0432\u0430\u043d' });
     const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.id;
-    const user = mockData.getUserById(decoded.id);
-    if (!user || user.role !== 'admin') {
-      return res.status(403).json({ error: 'Доступ запрещён' });
+    const { rows } = await pool.query('SELECT role FROM users WHERE id = $1', [decoded.id]);
+    if (!rows[0] || rows[0].role !== 'admin') {
+      return res.status(403).json({ error: '\u0414\u043e\u0441\u0442\u0443\u043f \u0437\u0430\u043f\u0440\u0435\u0449\u0451\u043d' });
     }
     next();
   } catch (error) {
-    res.status(401).json({ error: 'Не авторизован' });
+    res.status(401).json({ error: '\u041d\u0435 \u0430\u0432\u0442\u043e\u0440\u0438\u0437\u043e\u0432\u0430\u043d' });
   }
 };
 
-app.get('/api/books', (req, res) => {
-  const { category, search, sort, minPrice, maxPrice, limit = 50, offset = 0 } = req.query;
-  let result = [...mockData.books];
+const BOOK_SELECT = "b.id, b.title, a.name AS author_name, b.price, b.old_price, b.discount, b.image_url, b.description, b.isbn, b.year, b.pages, b.language, b.rating, b.stock, b.sales_count, b.is_active, c.id AS category_id, c.name AS category_name, c.slug AS category_slug";
+const BOOK_SELECT_SHORT = "b.id, b.title, a.name AS author_name, b.price, b.old_price, b.discount, b.image_url, b.year, b.rating, b.stock, b.is_active, b.sales_count, c.id AS category_id, c.name AS category_name, c.slug AS category_slug";
+const BOOK_JOIN = "FROM books b LEFT JOIN authors a ON b.author_id = a.id LEFT JOIN categories c ON b.category_id = c.id";
 
-  if (category) {
-    result = result.filter(b => b.category_slug === category);
+// === Books ===
+app.get('/api/books', async (req, res) => {
+  try {
+    const { category, search, sort, minPrice, maxPrice, limit = 50, offset = 0 } = req.query;
+    let query = `SELECT ${BOOK_SELECT} ${BOOK_JOIN} WHERE b.is_active = true`;
+    const params = [];
+    let paramIdx = 1;
+    if (category) { query += ' AND c.slug = $' + paramIdx++; params.push(category); }
+    if (search) { query += ' AND (LOWER(b.title) LIKE $' + paramIdx + ' OR LOWER(a.name) LIKE $' + paramIdx + ')'; params.push('%' + search.toLowerCase() + '%'); paramIdx++; }
+    if (minPrice) { query += ' AND b.price >= $' + paramIdx++; params.push(Number(minPrice)); }
+    if (maxPrice) { query += ' AND b.price <= $' + paramIdx++; params.push(Number(maxPrice)); }
+    const countQuery = query.replace(/SELECT .* FROM/, 'SELECT COUNT(*) FROM');
+    const countResult = await pool.query(countQuery, params);
+    const total = parseInt(countResult.rows[0].count);
+    switch (sort) {
+      case 'price-asc': query += ' ORDER BY b.price ASC'; break;
+      case 'price-desc': query += ' ORDER BY b.price DESC'; break;
+      case 'new': query += ' ORDER BY b.year DESC'; break;
+      case 'rating': query += ' ORDER BY b.rating DESC'; break;
+      default: query += ' ORDER BY b.sales_count DESC';
+    }
+    query += ' LIMIT $' + paramIdx++ + ' OFFSET $' + paramIdx++;
+    params.push(Number(limit), Number(offset));
+    const { rows } = await pool.query(query, params);
+    res.json({ books: rows, total });
+  } catch (error) {
+    console.error('GET /api/books error:', error);
+    res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
   }
-  if (search) {
-    const q = search.toLowerCase();
-    result = result.filter(b => 
-      b.title.toLowerCase().includes(q) || 
-      b.author_name.toLowerCase().includes(q)
-    );
+});
+
+app.get('/api/books/bestsellers', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT ${BOOK_SELECT_SHORT} ${BOOK_JOIN} WHERE b.is_active = true ORDER BY b.sales_count DESC LIMIT 8`);
+    res.json(rows);
+  } catch (error) {
+    console.error('GET /api/books/bestsellers error:', error);
+    res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
   }
-  if (minPrice) result = result.filter(b => b.price >= Number(minPrice));
-  if (maxPrice) result = result.filter(b => b.price <= Number(maxPrice));
+});
 
-  switch (sort) {
-    case 'price-asc': result.sort((a, b) => a.price - b.price); break;
-    case 'price-desc': result.sort((a, b) => b.price - a.price); break;
-    case 'new': result.sort((a, b) => b.year - a.year); break;
-    case 'rating': result.sort((a, b) => b.rating - a.rating); break;
-    default: result.sort((a, b) => b.sales_count - a.sales_count);
+app.get('/api/books/new', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT ${BOOK_SELECT_SHORT} ${BOOK_JOIN} WHERE b.is_active = true ORDER BY b.year DESC, b.created_at DESC LIMIT 8`);
+    res.json(rows);
+  } catch (error) {
+    console.error('GET /api/books/new error:', error);
+    res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
   }
-
-  res.json({ books: result.slice(Number(offset), Number(offset) + Number(limit)), total: result.length });
 });
 
-app.get('/api/books/bestsellers', (req, res) => {
-  const result = [...mockData.books].sort((a, b) => b.sales_count - a.sales_count).slice(0, 8);
-  res.json(result);
+app.get('/api/books/discounted', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT ${BOOK_SELECT_SHORT} ${BOOK_JOIN} WHERE b.is_active = true AND b.discount > 0 ORDER BY b.discount DESC`);
+    res.json(rows);
+  } catch (error) {
+    console.error('GET /api/books/discounted error:', error);
+    res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
+  }
 });
 
-app.get('/api/books/new', (req, res) => {
-  const result = [...mockData.books].sort((a, b) => b.year - a.year).slice(0, 8);
-  res.json(result);
+app.get('/api/books/search', async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q) return res.json([]);
+    const { rows } = await pool.query(`SELECT ${BOOK_SELECT_SHORT} ${BOOK_JOIN} WHERE b.is_active = true AND (LOWER(b.title) LIKE $1 OR LOWER(a.name) LIKE $1) ORDER BY b.sales_count DESC`, ['%' + q.toLowerCase() + '%']);
+    res.json(rows);
+  } catch (error) {
+    console.error('GET /api/books/search error:', error);
+    res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
+  }
 });
 
-app.get('/api/books/discounted', (req, res) => {
-  const result = mockData.books.filter(b => b.discount > 0).sort((a, b) => b.discount - a.discount);
-  res.json(result);
+app.get('/api/books/:id', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT ${BOOK_SELECT}, p.name AS publisher_name ${BOOK_JOIN} LEFT JOIN publishers p ON b.publisher_id = p.id WHERE b.id = $1`, [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: '\u041a\u043d\u0438\u0433\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430' });
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('GET /api/books/:id error:', error);
+    res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
+  }
 });
 
-app.get('/api/books/search', (req, res) => {
-  const { q } = req.query;
-  if (!q) return res.json([]);
-  const query = q.toLowerCase();
-  const result = mockData.books.filter(b => 
-    b.title.toLowerCase().includes(query) || 
-    b.author_name.toLowerCase().includes(query)
-  );
-  res.json(result);
+// === Categories ===
+app.get('/api/categories', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id, name, slug, description, image_url FROM categories ORDER BY id');
+    res.json(rows);
+  } catch (error) {
+    console.error('GET /api/categories error:', error);
+    res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
+  }
 });
 
-app.get('/api/books/:id', (req, res) => {
-  const book = mockData.books.find(b => b.id === Number(req.params.id));
-  if (!book) return res.status(404).json({ error: 'Книга не найдена' });
-  res.json(book);
+app.get('/api/categories/:slug', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id, name, slug, description, image_url FROM categories WHERE slug = $1', [req.params.slug]);
+    if (!rows[0]) return res.status(404).json({ error: '\u041a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044f \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430' });
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('GET /api/categories/:slug error:', error);
+    res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
+  }
 });
 
-app.get('/api/categories', (req, res) => {
-  res.json(mockData.categories);
-});
-
-app.get('/api/categories/:slug', (req, res) => {
-  const category = mockData.categories.find(c => c.slug === req.params.slug);
-  if (!category) return res.status(404).json({ error: 'Категория не найдена' });
-  res.json(category);
-});
-
+// === Auth ===
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, password, phone } = req.body;
-    if (mockData.getUserByEmail(email)) {
-      return res.status(400).json({ error: 'Пользователь с таким email уже существует' });
-    }
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existing.rows.length > 0) return res.status(400).json({ error: '\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u0441 \u0442\u0430\u043a\u0438\u043c email \u0443\u0436\u0435 \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u0435\u0442' });
     const password_hash = await bcrypt.hash(password, 10);
-    const user = mockData.createUser({ name, email, password_hash, phone, role: 'customer' });
+    const { rows } = await pool.query('INSERT INTO users (name, email, password_hash, phone, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, phone, role, created_at, updated_at', [name, email, password_hash, phone || null, 'customer']);
+    const user = rows[0];
     const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
-    const { password_hash: _, ...userWithoutPassword } = user;
-    res.status(201).json({ user: userWithoutPassword, token });
+    res.status(201).json({ user, token });
   } catch (error) {
-    res.status(500).json({ error: 'Ошибка сервера' });
+    console.error('POST /api/auth/register error:', error);
+    res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
   }
 });
 
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = mockData.getUserByEmail(email);
-    if (!user) return res.status(400).json({ error: 'Неверный email или пароль' });
+    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = rows[0];
+    if (!user) return res.status(400).json({ error: '\u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 email \u0438\u043b\u0438 \u043f\u0430\u0440\u043e\u043b\u044c' });
     const isMatch = await bcrypt.compare(password, user.password_hash);
-    if (!isMatch) return res.status(400).json({ error: 'Неверный email или пароль' });
+    if (!isMatch) return res.status(400).json({ error: '\u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 email \u0438\u043b\u0438 \u043f\u0430\u0440\u043e\u043b\u044c' });
     const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
-    const { password_hash: _, ...userWithoutPassword } = user;
+    const { password_hash, ...userWithoutPassword } = user;
     res.json({ user: userWithoutPassword, token });
   } catch (error) {
-    res.status(500).json({ error: 'Ошибка сервера' });
+    console.error('POST /api/auth/login error:', error);
+    res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
   }
 });
 
-app.get('/api/auth/me', auth, (req, res) => {
-  const user = mockData.getUserById(req.userId);
-  if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
-  const { password_hash: _, ...userWithoutPassword } = user;
-  res.json(userWithoutPassword);
+app.get('/api/auth/me', auth, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id, name, email, phone, role, created_at, updated_at FROM users WHERE id = $1', [req.userId]);
+    if (!rows[0]) return res.status(404).json({ error: '\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d' });
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('GET /api/auth/me error:', error);
+    res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
+  }
 });
 
 app.put('/api/auth/me', auth, async (req, res) => {
   try {
     const { name, phone, currentPassword, newPassword } = req.body;
-    const user = mockData.getUserById(req.userId);
-    if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
-    
-    const updateData = {};
-    if (name) updateData.name = name;
-    if (phone) updateData.phone = phone;
-    
+    const { rows: userRows } = await pool.query('SELECT * FROM users WHERE id = $1', [req.userId]);
+    const user = userRows[0];
+    if (!user) return res.status(404).json({ error: '\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d' });
+    const updates = []; const values = []; let paramIdx = 1;
+    if (name) { updates.push('name = $' + paramIdx++); values.push(name); }
+    if (phone) { updates.push('phone = $' + paramIdx++); values.push(phone); }
     if (newPassword) {
-      if (!currentPassword) {
-        return res.status(400).json({ error: 'Введите текущий пароль' });
-      }
+      if (!currentPassword) return res.status(400).json({ error: '\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0442\u0435\u043a\u0443\u0449\u0438\u0439 \u043f\u0430\u0440\u043e\u043b\u044c' });
       const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
-      if (!isMatch) {
-        return res.status(400).json({ error: 'Неверный текущий пароль' });
-      }
-      updateData.password_hash = await bcrypt.hash(newPassword, 10);
+      if (!isMatch) return res.status(400).json({ error: '\u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 \u0442\u0435\u043a\u0443\u0449\u0438\u0439 \u043f\u0430\u0440\u043e\u043b\u044c' });
+      const hash = await bcrypt.hash(newPassword, 10);
+      updates.push('password_hash = $' + paramIdx++); values.push(hash);
     }
-    
-    const updatedUser = mockData.updateUser(req.userId, updateData);
-    const { password_hash: _, ...userWithoutPassword } = updatedUser;
-    res.json(userWithoutPassword);
+    if (updates.length === 0) { const { password_hash, ...safe } = user; return res.json(safe); }
+    values.push(req.userId);
+    const { rows } = await pool.query('UPDATE users SET ' + updates.join(', ') + ' WHERE id = $' + paramIdx + ' RETURNING id, name, email, phone, role, created_at, updated_at', values);
+    res.json(rows[0]);
   } catch (error) {
-    res.status(500).json({ error: 'Ошибка сервера' });
+    console.error('PUT /api/auth/me error:', error);
+    res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
   }
 });
 
-app.get('/api/addresses', auth, (req, res) => {
-  const items = mockData.getAddressesByUser(req.userId);
-  res.json(items);
+// === Addresses ===
+app.get('/api/addresses', auth, async (req, res) => {
+  try { const { rows } = await pool.query('SELECT * FROM user_addresses WHERE user_id = $1 ORDER BY is_default DESC, id', [req.userId]); res.json(rows); }
+  catch (error) { console.error('GET /api/addresses error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.post('/api/addresses', auth, (req, res) => {
-  const { city, street, building, apartment, is_default } = req.body;
-  const address = mockData.createAddress({
-    user_id: req.userId,
-    city,
-    street,
-    building,
-    apartment,
-    is_default: is_default || false
-  });
-  res.status(201).json(address);
+app.post('/api/addresses', auth, async (req, res) => {
+  try {
+    const { city, street, building, apartment, is_default } = req.body;
+    if (is_default) await pool.query('UPDATE user_addresses SET is_default = false WHERE user_id = $1', [req.userId]);
+    const { rows } = await pool.query('INSERT INTO user_addresses (user_id, city, street, building, apartment, is_default) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.userId, city, street, building || null, apartment || null, is_default || false]);
+    res.status(201).json(rows[0]);
+  } catch (error) { console.error('POST /api/addresses error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.put('/api/addresses/:id', auth, (req, res) => {
-  const address = mockData.getAddressById(Number(req.params.id));
-  if (!address || address.user_id !== req.userId) {
-    return res.status(404).json({ error: 'Адрес не найден' });
-  }
-  const { city, street, building, apartment, is_default } = req.body;
-  const updated = mockData.updateAddress(Number(req.params.id), {
-    city, street, building, apartment, is_default
-  });
-  res.json(updated);
+app.put('/api/addresses/:id', auth, async (req, res) => {
+  try {
+    const { rows: existing } = await pool.query('SELECT * FROM user_addresses WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    if (!existing[0]) return res.status(404).json({ error: '\u0410\u0434\u0440\u0435\u0441 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d' });
+    const { city, street, building, apartment, is_default } = req.body;
+    if (is_default) await pool.query('UPDATE user_addresses SET is_default = false WHERE user_id = $1', [req.userId]);
+    const { rows } = await pool.query('UPDATE user_addresses SET city = $1, street = $2, building = $3, apartment = $4, is_default = $5 WHERE id = $6 RETURNING *', [city, street, building, apartment, is_default || false, req.params.id]);
+    res.json(rows[0]);
+  } catch (error) { console.error('PUT /api/addresses/:id error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.delete('/api/addresses/:id', auth, (req, res) => {
-  const address = mockData.getAddressById(Number(req.params.id));
-  if (!address || address.user_id !== req.userId) {
-    return res.status(404).json({ error: 'Адрес не найден' });
-  }
-  mockData.deleteAddress(Number(req.params.id));
-  res.json({ message: 'Адрес удалён' });
+app.delete('/api/addresses/:id', auth, async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM user_addresses WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    if (result.rowCount === 0) return res.status(404).json({ error: '\u0410\u0434\u0440\u0435\u0441 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d' });
+    res.json({ message: '\u0410\u0434\u0440\u0435\u0441 \u0443\u0434\u0430\u043b\u0451\u043d' });
+  } catch (error) { console.error('DELETE /api/addresses/:id error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.get('/api/payment-methods', auth, (req, res) => {
-  const items = mockData.getPaymentMethodsByUser(req.userId);
-  res.json(items);
+// === Payment Methods ===
+app.get('/api/payment-methods', auth, async (req, res) => {
+  try { const { rows } = await pool.query('SELECT * FROM payment_methods WHERE user_id = $1 ORDER BY is_default DESC, id', [req.userId]); res.json(rows); }
+  catch (error) { console.error('GET /api/payment-methods error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.post('/api/payment-methods', auth, (req, res) => {
-  const { type, card_number, card_holder, expiry_date, is_default } = req.body;
-  const payment = mockData.createPaymentMethod({
-    user_id: req.userId,
-    type: type || 'card',
-    card_number,
-    card_holder,
-    expiry_date,
-    is_default: is_default || false
-  });
-  res.status(201).json(payment);
+app.post('/api/payment-methods', auth, async (req, res) => {
+  try {
+    const { type, card_number, card_holder, expiry_date, is_default } = req.body;
+    if (is_default) await pool.query('UPDATE payment_methods SET is_default = false WHERE user_id = $1', [req.userId]);
+    const { rows } = await pool.query('INSERT INTO payment_methods (user_id, type, card_number, card_holder, expiry_date, is_default) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.userId, type || 'card', card_number, card_holder, expiry_date, is_default || false]);
+    res.status(201).json(rows[0]);
+  } catch (error) { console.error('POST /api/payment-methods error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.put('/api/payment-methods/:id', auth, (req, res) => {
-  const payment = mockData.getPaymentMethodById(Number(req.params.id));
-  if (!payment || payment.user_id !== req.userId) {
-    return res.status(404).json({ error: 'Способ оплаты не найден' });
-  }
-  const { type, card_number, card_holder, expiry_date, is_default } = req.body;
-  const updated = mockData.updatePaymentMethod(Number(req.params.id), {
-    type, card_number, card_holder, expiry_date, is_default
-  });
-  res.json(updated);
+app.put('/api/payment-methods/:id', auth, async (req, res) => {
+  try {
+    const { rows: existing } = await pool.query('SELECT * FROM payment_methods WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    if (!existing[0]) return res.status(404).json({ error: '\u0421\u043f\u043e\u0441\u043e\u0431 \u043e\u043f\u043b\u0430\u0442\u044b \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d' });
+    const { type, card_number, card_holder, expiry_date, is_default } = req.body;
+    if (is_default) await pool.query('UPDATE payment_methods SET is_default = false WHERE user_id = $1', [req.userId]);
+    const { rows } = await pool.query('UPDATE payment_methods SET type = $1, card_number = $2, card_holder = $3, expiry_date = $4, is_default = $5 WHERE id = $6 RETURNING *', [type, card_number, card_holder, expiry_date, is_default || false, req.params.id]);
+    res.json(rows[0]);
+  } catch (error) { console.error('PUT /api/payment-methods/:id error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.delete('/api/payment-methods/:id', auth, (req, res) => {
-  const payment = mockData.getPaymentMethodById(Number(req.params.id));
-  if (!payment || payment.user_id !== req.userId) {
-    return res.status(404).json({ error: 'Способ оплаты не найден' });
-  }
-  mockData.deletePaymentMethod(Number(req.params.id));
-  res.json({ message: 'Способ оплаты удалён' });
+app.delete('/api/payment-methods/:id', auth, async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM payment_methods WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    if (result.rowCount === 0) return res.status(404).json({ error: '\u0421\u043f\u043e\u0441\u043e\u0431 \u043e\u043f\u043b\u0430\u0442\u044b \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d' });
+    res.json({ message: '\u0421\u043f\u043e\u0441\u043e\u0431 \u043e\u043f\u043b\u0430\u0442\u044b \u0443\u0434\u0430\u043b\u0451\u043d' });
+  } catch (error) { console.error('DELETE /api/payment-methods/:id error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.get('/api/cart', auth, (req, res) => {
-  const items = mockData.getCartByUser(req.userId);
-  const result = items.map(item => {
-    const book = mockData.books.find(b => b.id === item.book_id);
-    return { ...item, book };
-  });
-  res.json(result);
+// === Cart ===
+app.get('/api/cart', auth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT ci.id, ci.user_id, ci.book_id, ci.quantity, b.title, a.name AS author_name, b.price, b.old_price, b.discount, b.image_url, b.stock, b.is_active, b.rating, b.year, b.sales_count, c.id AS category_id, c.name AS category_name, c.slug AS category_slug FROM cart_items ci JOIN books b ON ci.book_id = b.id LEFT JOIN authors a ON b.author_id = a.id LEFT JOIN categories c ON b.category_id = c.id WHERE ci.user_id = $1 ORDER BY ci.created_at`, [req.userId]);
+    res.json(rows.map(row => ({ id: row.id, user_id: row.user_id, book_id: row.book_id, quantity: row.quantity, book: { id: row.book_id, title: row.title, author_name: row.author_name, price: row.price, old_price: row.old_price, discount: row.discount, image_url: row.image_url, stock: row.stock, is_active: row.is_active, rating: row.rating, year: row.year, sales_count: row.sales_count, category_id: row.category_id, category_name: row.category_name, category_slug: row.category_slug } })));
+  } catch (error) { console.error('GET /api/cart error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.post('/api/cart', auth, (req, res) => {
-  const { bookId, quantity = 1 } = req.body;
-  const item = mockData.addToCart(req.userId, bookId, quantity);
-  const book = mockData.books.find(b => b.id === bookId);
-  res.status(201).json({ ...item, book });
+app.post('/api/cart', auth, async (req, res) => {
+  try {
+    const { bookId, quantity = 1 } = req.body;
+    const { rows: existing } = await pool.query('SELECT * FROM cart_items WHERE user_id = $1 AND book_id = $2', [req.userId, bookId]);
+    let item;
+    if (existing[0]) { const { rows } = await pool.query('UPDATE cart_items SET quantity = quantity + $1 WHERE user_id = $2 AND book_id = $3 RETURNING *', [quantity, req.userId, bookId]); item = rows[0]; }
+    else { const { rows } = await pool.query('INSERT INTO cart_items (user_id, book_id, quantity) VALUES ($1, $2, $3) RETURNING *', [req.userId, bookId, quantity]); item = rows[0]; }
+    const { rows: bookRows } = await pool.query(`SELECT ${BOOK_SELECT_SHORT} ${BOOK_JOIN} WHERE b.id = $1`, [bookId]);
+    res.status(201).json({ ...item, book: bookRows[0] });
+  } catch (error) { console.error('POST /api/cart error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.patch('/api/cart/:bookId', auth, (req, res) => {
-  const { quantity } = req.body;
-  if (quantity <= 0) {
-    mockData.removeFromCart(req.userId, Number(req.params.bookId));
-    return res.json({ message: 'Удалено' });
-  }
-  const item = mockData.updateCartItem(req.userId, Number(req.params.bookId), quantity);
-  res.json(item);
+app.patch('/api/cart/:bookId', auth, async (req, res) => {
+  try {
+    const { quantity } = req.body;
+    if (quantity <= 0) { await pool.query('DELETE FROM cart_items WHERE user_id = $1 AND book_id = $2', [req.userId, req.params.bookId]); return res.json({ message: '\u0423\u0434\u0430\u043b\u0435\u043d\u043e' }); }
+    const { rows } = await pool.query('UPDATE cart_items SET quantity = $1 WHERE user_id = $2 AND book_id = $3 RETURNING *', [quantity, req.userId, req.params.bookId]);
+    res.json(rows[0]);
+  } catch (error) { console.error('PATCH /api/cart/:bookId error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.delete('/api/cart/:bookId', auth, (req, res) => {
-  mockData.removeFromCart(req.userId, Number(req.params.bookId));
-  res.json({ message: 'Удалено' });
+app.delete('/api/cart/:bookId', auth, async (req, res) => {
+  try { await pool.query('DELETE FROM cart_items WHERE user_id = $1 AND book_id = $2', [req.userId, req.params.bookId]); res.json({ message: '\u0423\u0434\u0430\u043b\u0435\u043d\u043e' }); }
+  catch (error) { console.error('DELETE /api/cart/:bookId error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.delete('/api/cart', auth, (req, res) => {
-  mockData.clearCart(req.userId);
-  res.json({ message: 'Корзина очищена' });
+app.delete('/api/cart', auth, async (req, res) => {
+  try { await pool.query('DELETE FROM cart_items WHERE user_id = $1', [req.userId]); res.json({ message: '\u041a\u043e\u0440\u0437\u0438\u043d\u0430 \u043e\u0447\u0438\u0449\u0435\u043d\u0430' }); }
+  catch (error) { console.error('DELETE /api/cart error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.get('/api/favorites', auth, (req, res) => {
-  const items = mockData.getFavoritesByUser(req.userId);
-  const result = items.map(item => {
-    const book = mockData.books.find(b => b.id === item.book_id);
-    return { ...item, book };
-  });
-  res.json(result);
+// === Favorites ===
+app.get('/api/favorites', auth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT f.id, f.user_id, f.book_id, f.created_at, b.title, a.name AS author_name, b.price, b.old_price, b.discount, b.image_url, b.stock, b.is_active, b.rating, b.year, b.sales_count, c.id AS category_id, c.name AS category_name, c.slug AS category_slug FROM favorites f JOIN books b ON f.book_id = b.id LEFT JOIN authors a ON b.author_id = a.id LEFT JOIN categories c ON b.category_id = c.id WHERE f.user_id = $1 ORDER BY f.created_at DESC`, [req.userId]);
+    res.json(rows.map(row => ({ id: row.id, user_id: row.user_id, book_id: row.book_id, created_at: row.created_at, book: { id: row.book_id, title: row.title, author_name: row.author_name, price: row.price, old_price: row.old_price, discount: row.discount, image_url: row.image_url, stock: row.stock, is_active: row.is_active, rating: row.rating, year: row.year, sales_count: row.sales_count, category_id: row.category_id, category_name: row.category_name, category_slug: row.category_slug } })));
+  } catch (error) { console.error('GET /api/favorites error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.post('/api/favorites/:bookId', auth, (req, res) => {
-  mockData.addToFavorites(req.userId, Number(req.params.bookId));
-  res.status(201).json({ message: 'Добавлено в избранное' });
+app.post('/api/favorites/:bookId', auth, async (req, res) => {
+  try { await pool.query('INSERT INTO favorites (user_id, book_id) VALUES ($1, $2) ON CONFLICT (user_id, book_id) DO NOTHING', [req.userId, req.params.bookId]); res.status(201).json({ message: '\u0414\u043e\u0431\u0430\u0432\u043b\u0435\u043d\u043e \u0432 \u0438\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435' }); }
+  catch (error) { console.error('POST /api/favorites/:bookId error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.delete('/api/favorites/:bookId', auth, (req, res) => {
-  mockData.removeFromFavorites(req.userId, Number(req.params.bookId));
-  res.json({ message: 'Удалено из избранного' });
+app.delete('/api/favorites/:bookId', auth, async (req, res) => {
+  try { await pool.query('DELETE FROM favorites WHERE user_id = $1 AND book_id = $2', [req.userId, req.params.bookId]); res.json({ message: '\u0423\u0434\u0430\u043b\u0435\u043d\u043e \u0438\u0437 \u0438\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0433\u043e' }); }
+  catch (error) { console.error('DELETE /api/favorites/:bookId error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.get('/api/favorites/check/:bookId', auth, (req, res) => {
-  const isFavorite = mockData.isFavorite(req.userId, Number(req.params.bookId));
-  res.json({ isFavorite });
+app.get('/api/favorites/check/:bookId', auth, async (req, res) => {
+  try { const { rows } = await pool.query('SELECT id FROM favorites WHERE user_id = $1 AND book_id = $2', [req.userId, req.params.bookId]); res.json({ isFavorite: rows.length > 0 }); }
+  catch (error) { console.error('GET /api/favorites/check/:bookId error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.get('/api/orders', auth, (req, res) => {
-  const orders = mockData.getOrdersByUser(req.userId);
-  res.json(orders);
+// === Orders ===
+app.get('/api/orders', auth, async (req, res) => {
+  try {
+    const { rows: orders } = await pool.query('SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC', [req.userId]);
+    for (const order of orders) {
+      const { rows: items } = await pool.query(`SELECT oi.*, b.title, a.name AS author_name, b.price AS book_price, b.image_url, b.old_price, b.discount, b.rating, b.stock, b.is_active, b.year, b.sales_count, c.id AS category_id, c.name AS category_name, c.slug AS category_slug FROM order_items oi JOIN books b ON oi.book_id = b.id LEFT JOIN authors a ON b.author_id = a.id LEFT JOIN categories c ON b.category_id = c.id WHERE oi.order_id = $1`, [order.id]);
+      order.items = items.map(item => ({ ...item, book: { id: item.book_id, title: item.title, author_name: item.author_name, price: item.book_price, image_url: item.image_url, old_price: item.old_price, discount: item.discount, rating: item.rating, stock: item.stock, is_active: item.is_active, year: item.year, sales_count: item.sales_count, category_id: item.category_id, category_name: item.category_name, category_slug: item.category_slug } }));
+    }
+    res.json(orders);
+  } catch (error) { console.error('GET /api/orders error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.get('/api/orders/:id', auth, (req, res) => {
-  const order = mockData.getOrderById(Number(req.params.id));
-  if (!order || order.user_id !== req.userId) {
-    return res.status(404).json({ error: 'Заказ не найден' });
-  }
-  res.json(order);
+app.get('/api/orders/:id', auth, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM orders WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    if (!rows[0]) return res.status(404).json({ error: '\u0417\u0430\u043a\u0430\u0437 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d' });
+    const order = rows[0];
+    const { rows: items } = await pool.query('SELECT oi.*, b.title, a.name AS author_name, b.price AS book_price, b.image_url FROM order_items oi JOIN books b ON oi.book_id = b.id LEFT JOIN authors a ON b.author_id = a.id WHERE oi.order_id = $1', [order.id]);
+    order.items = items.map(item => ({ ...item, book: { id: item.book_id, title: item.title, author_name: item.author_name, price: item.book_price, image_url: item.image_url } }));
+    res.json(order);
+  } catch (error) { console.error('GET /api/orders/:id error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.post('/api/orders', auth, (req, res) => {
-  const { items, delivery, paymentMethod } = req.body;
-  const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const deliveryPrice = delivery.method === 'pickup' ? 0 : totalPrice >= 50 ? 0 : 5;
-  
-  const order = mockData.createOrder({
-    user_id: req.userId,
-    items: items.map(item => ({
-      book_id: item.id,
-      quantity: item.quantity,
-      price: item.price
-    })),
-    total_price: totalPrice,
-    delivery_price: deliveryPrice,
-    delivery_method: delivery.method,
-    delivery_city: delivery.city,
-    delivery_address: delivery.address,
-    delivery_phone: delivery.phone,
-    payment_method: paymentMethod,
-    comment: delivery.comment,
-  });
-  
-  mockData.clearCart(req.userId);
-  
-  setTimeout(() => {
-    mockData.updateOrderStatus(order.id, 'confirmed');
-  }, 5000);
-  
-  setTimeout(() => {
-    mockData.updateOrderStatus(order.id, 'processing');
-  }, 15000);
-  
-  res.status(201).json(order);
+app.post('/api/orders', auth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { items, delivery, paymentMethod } = req.body;
+    const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const deliveryPrice = delivery.method === 'pickup' ? 0 : totalPrice >= 50 ? 0 : 5;
+    const orderNumber = 'ORD-' + Date.now().toString(36).toUpperCase();
+    const { rows: orderRows } = await client.query("INSERT INTO orders (order_number, user_id, total_price, delivery_price, delivery_method, delivery_city, delivery_address, delivery_phone, payment_method, comment, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending') RETURNING *", [orderNumber, req.userId, totalPrice, deliveryPrice, delivery.method, delivery.city, delivery.address, delivery.phone, paymentMethod, delivery.comment || null]);
+    const order = orderRows[0];
+    for (const item of items) { await client.query('INSERT INTO order_items (order_id, book_id, quantity, price) VALUES ($1, $2, $3, $4)', [order.id, item.id, item.quantity, item.price]); }
+    await client.query('DELETE FROM cart_items WHERE user_id = $1', [req.userId]);
+    await client.query('COMMIT');
+    const { rows: orderItems } = await pool.query('SELECT oi.*, b.title, a.name AS author_name, b.price AS book_price, b.image_url FROM order_items oi JOIN books b ON oi.book_id = b.id LEFT JOIN authors a ON b.author_id = a.id WHERE oi.order_id = $1', [order.id]);
+    order.items = orderItems.map(item => ({ ...item, book: { id: item.book_id, title: item.title, author_name: item.author_name, price: item.book_price, image_url: item.image_url } }));
+    res.status(201).json(order);
+  } catch (error) { await client.query('ROLLBACK'); console.error('POST /api/orders error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
+  finally { client.release(); }
 });
 
-app.patch('/api/orders/:id/status', auth, (req, res) => {
-  const { status } = req.body;
-  const order = mockData.getOrderById(Number(req.params.id));
-  if (!order || order.user_id !== req.userId) {
-    return res.status(404).json({ error: 'Заказ не найден' });
-  }
-  mockData.updateOrderStatus(Number(req.params.id), status);
-  res.json({ message: 'Статус обновлён' });
+app.patch('/api/orders/:id/status', auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const { rows } = await pool.query('UPDATE orders SET status = $1 WHERE id = $2 AND user_id = $3 RETURNING *', [status, req.params.id, req.userId]);
+    if (!rows[0]) return res.status(404).json({ error: '\u0417\u0430\u043a\u0430\u0437 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d' });
+    res.json({ message: '\u0421\u0442\u0430\u0442\u0443\u0441 \u043e\u0431\u043d\u043e\u0432\u043b\u0451\u043d' });
+  } catch (error) { console.error('PATCH /api/orders/:id/status error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.delete('/api/orders/:id', auth, (req, res) => {
-  const order = mockData.getOrderById(Number(req.params.id));
-  if (!order || order.user_id !== req.userId) {
-    return res.status(404).json({ error: 'Заказ не найден' });
-  }
-  if (order.status !== 'pending') {
-    return res.status(400).json({ error: 'Нельзя отменить заказ в этом статусе' });
-  }
-  mockData.updateOrderStatus(Number(req.params.id), 'cancelled');
-  res.json({ message: 'Заказ отменён' });
+app.delete('/api/orders/:id', auth, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM orders WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    if (!rows[0]) return res.status(404).json({ error: '\u0417\u0430\u043a\u0430\u0437 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d' });
+    if (rows[0].status !== 'pending') return res.status(400).json({ error: '\u041d\u0435\u043b\u044c\u0437\u044f \u043e\u0442\u043c\u0435\u043d\u0438\u0442\u044c \u0437\u0430\u043a\u0430\u0437 \u0432 \u044d\u0442\u043e\u043c \u0441\u0442\u0430\u0442\u0443\u0441\u0435' });
+    await pool.query("UPDATE orders SET status = 'cancelled' WHERE id = $1", [req.params.id]);
+    res.json({ message: '\u0417\u0430\u043a\u0430\u0437 \u043e\u0442\u043c\u0435\u043d\u0451\u043d' });
+  } catch (error) { console.error('DELETE /api/orders/:id error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.get('/api/stores', (req, res) => {
-  res.json(mockData.stores);
+// === Stores ===
+app.get('/api/stores', async (req, res) => {
+  try { const { rows } = await pool.query('SELECT * FROM stores WHERE is_active = true ORDER BY id'); res.json(rows); }
+  catch (error) { console.error('GET /api/stores error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.get('/api/stores/:id', (req, res) => {
-  const store = mockData.stores.find(s => s.id === Number(req.params.id));
-  if (!store) return res.status(404).json({ error: 'Магазин не найден' });
-  res.json(store);
+app.get('/api/stores/:id', async (req, res) => {
+  try { const { rows } = await pool.query('SELECT * FROM stores WHERE id = $1', [req.params.id]); if (!rows[0]) return res.status(404).json({ error: '\u041c\u0430\u0433\u0430\u0437\u0438\u043d \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d' }); res.json(rows[0]); }
+  catch (error) { console.error('GET /api/stores/:id error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
 // === Reviews ===
-app.get('/api/books/:id/reviews', (req, res) => {
-  const reviews = mockData.getReviewsByBook(Number(req.params.id));
-  const enriched = reviews.map(r => {
-    const user = mockData.getUserById(r.user_id);
-    return { ...r, user_name: user ? user.name : 'Пользователь' };
-  });
-  res.json(enriched);
+app.get('/api/books/:id/reviews', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT r.id, r.book_id, r.user_id, r.rating, r.comment, r.is_approved, r.created_at, u.name AS user_name FROM reviews r LEFT JOIN users u ON r.user_id = u.id WHERE r.book_id = $1 ORDER BY r.created_at DESC', [req.params.id]);
+    res.json(rows.map(r => ({ ...r, user_name: r.user_name || '\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c' })));
+  } catch (error) { console.error('GET /api/books/:id/reviews error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.post('/api/books/:id/reviews', auth, (req, res) => {
-  const { rating, comment } = req.body;
-  if (!rating || rating < 1 || rating > 5) {
-    return res.status(400).json({ error: 'Рейтинг должен быть от 1 до 5' });
-  }
-  const user = mockData.getUserById(req.userId);
-  const review = mockData.createReview({
-    book_id: Number(req.params.id),
-    user_id: req.userId,
-    rating: Number(rating),
-    comment: comment || '',
-  });
-  res.status(201).json({ ...review, user_name: user ? user.name : 'Пользователь' });
+app.post('/api/books/:id/reviews', auth, async (req, res) => {
+  try {
+    const { rating, comment } = req.body;
+    if (!rating || rating < 1 || rating > 5) return res.status(400).json({ error: '\u0420\u0435\u0439\u0442\u0438\u043d\u0433 \u0434\u043e\u043b\u0436\u0435\u043d \u0431\u044b\u0442\u044c \u043e\u0442 1 \u0434\u043e 5' });
+    const { rows: userRows } = await pool.query('SELECT name FROM users WHERE id = $1', [req.userId]);
+    const { rows } = await pool.query('INSERT INTO reviews (book_id, user_id, rating, comment, is_approved) VALUES ($1, $2, $3, $4, true) RETURNING *', [req.params.id, req.userId, Number(rating), comment || '']);
+    res.status(201).json({ ...rows[0], user_name: userRows[0] ? userRows[0].name : '\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c' });
+  } catch (error) { console.error('POST /api/books/:id/reviews error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-// === Promo Codes (public) ===
-app.post('/api/promo/validate', auth, (req, res) => {
-  const { code, orderAmount } = req.body;
-  if (!code) return res.status(400).json({ error: 'Введите промокод' });
-  const promo = mockData.getPromoByCode(code);
-  if (!promo) return res.status(404).json({ error: 'Промокод не найден' });
-  if (!promo.is_active) return res.status(400).json({ error: 'Промокод неактивен' });
-  if (promo.current_uses >= promo.max_uses) return res.status(400).json({ error: 'Промокод исчерпан' });
-  const now = new Date();
-  if (new Date(promo.valid_from) > now || new Date(promo.valid_until) < now) {
-    return res.status(400).json({ error: 'Промокод просрочен' });
-  }
-  if (orderAmount && orderAmount < promo.min_order_amount) {
-    return res.status(400).json({ error: `Минимальная сумма заказа: ${promo.min_order_amount} р.` });
-  }
-  let discount = 0;
-  if (promo.discount_percent) {
-    discount = orderAmount ? (orderAmount * promo.discount_percent / 100) : promo.discount_percent;
-  } else if (promo.discount_amount) {
-    discount = promo.discount_amount;
-  }
-  res.json({ valid: true, discount: Number(discount.toFixed(2)), promo });
+// === Promo Codes ===
+app.post('/api/promo/validate', auth, async (req, res) => {
+  try {
+    const { code, orderAmount } = req.body;
+    if (!code) return res.status(400).json({ error: '\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043f\u0440\u043e\u043c\u043e\u043a\u043e\u0434' });
+    const { rows } = await pool.query('SELECT * FROM promo_codes WHERE UPPER(code) = UPPER($1)', [code]);
+    const promo = rows[0];
+    if (!promo) return res.status(404).json({ error: '\u041f\u0440\u043e\u043c\u043e\u043a\u043e\u0434 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d' });
+    if (!promo.is_active) return res.status(400).json({ error: '\u041f\u0440\u043e\u043c\u043e\u043a\u043e\u0434 \u043d\u0435\u0430\u043a\u0442\u0438\u0432\u0435\u043d' });
+    if (promo.max_uses && promo.current_uses >= promo.max_uses) return res.status(400).json({ error: '\u041f\u0440\u043e\u043c\u043e\u043a\u043e\u0434 \u0438\u0441\u0447\u0435\u0440\u043f\u0430\u043d' });
+    const now = new Date();
+    if (promo.valid_from && new Date(promo.valid_from) > now) return res.status(400).json({ error: '\u041f\u0440\u043e\u043c\u043e\u043a\u043e\u0434 \u0435\u0449\u0451 \u043d\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0443\u0435\u0442' });
+    if (promo.valid_until && new Date(promo.valid_until) < now) return res.status(400).json({ error: '\u041f\u0440\u043e\u043c\u043e\u043a\u043e\u0434 \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d' });
+    if (orderAmount && promo.min_order_amount && orderAmount < Number(promo.min_order_amount)) return res.status(400).json({ error: '\u041c\u0438\u043d\u0438\u043c\u0430\u043b\u044c\u043d\u0430\u044f \u0441\u0443\u043c\u043c\u0430 \u0437\u0430\u043a\u0430\u0437\u0430: ' + promo.min_order_amount + ' \u0440.' });
+    let discount = 0;
+    if (promo.discount_percent) { discount = orderAmount ? (orderAmount * promo.discount_percent / 100) : promo.discount_percent; }
+    else if (promo.discount_amount) { discount = Number(promo.discount_amount); }
+    res.json({ valid: true, discount: Number(discount.toFixed(2)), promo });
+  } catch (error) { console.error('POST /api/promo/validate error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
 // === Admin API ===
-app.get('/api/admin/stats', adminAuth, (req, res) => {
-  res.json(mockData.getStats());
+app.get('/api/admin/stats', adminAuth, async (req, res) => {
+  try {
+    const totalRevenue = await pool.query("SELECT COALESCE(SUM(total_price), 0) AS total FROM orders WHERE status != 'cancelled'");
+    const totalOrders = await pool.query('SELECT COUNT(*) AS total FROM orders');
+    const totalUsers = await pool.query('SELECT COUNT(*) AS total FROM users');
+    const totalBooks = await pool.query('SELECT COUNT(*) AS total FROM books');
+    const activeOrders = await pool.query("SELECT COUNT(*) AS total FROM orders WHERE status NOT IN ('delivered', 'cancelled', 'completed')");
+    const statusResult = await pool.query('SELECT status, COUNT(*) AS count FROM orders GROUP BY status');
+    const ordersByStatus = {}; statusResult.rows.forEach(r => { ordersByStatus[r.status] = parseInt(r.count); });
+    const { rows: topBooks } = await pool.query(`SELECT ${BOOK_SELECT_SHORT} ${BOOK_JOIN} ORDER BY b.sales_count DESC LIMIT 5`);
+    const { rows: recentOrders } = await pool.query('SELECT * FROM orders ORDER BY created_at DESC LIMIT 5');
+    for (const order of recentOrders) {
+      const { rows: items } = await pool.query('SELECT oi.*, b.title, a.name AS author_name, b.price AS book_price, b.image_url FROM order_items oi JOIN books b ON oi.book_id = b.id LEFT JOIN authors a ON b.author_id = a.id WHERE oi.order_id = $1', [order.id]);
+      order.items = items.map(item => ({ ...item, book: { id: item.book_id, title: item.title, author_name: item.author_name, price: item.book_price, image_url: item.image_url } }));
+    }
+    res.json({ totalRevenue: Number(totalRevenue.rows[0].total), totalOrders: parseInt(totalOrders.rows[0].total), totalUsers: parseInt(totalUsers.rows[0].total), totalBooks: parseInt(totalBooks.rows[0].total), activeOrders: parseInt(activeOrders.rows[0].total), ordersByStatus, topBooks, recentOrders });
+  } catch (error) { console.error('GET /api/admin/stats error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.get('/api/admin/users', adminAuth, (req, res) => {
-  const users = mockData.getUsers().map(u => {
-    const { password_hash, ...safe } = u;
-    return safe;
-  });
-  res.json(users);
+app.get('/api/admin/users', adminAuth, async (req, res) => {
+  try { const { rows } = await pool.query('SELECT id, name, email, phone, role, created_at, updated_at FROM users ORDER BY id'); res.json(rows); }
+  catch (error) { console.error('GET /api/admin/users error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.put('/api/admin/users/:id/role', adminAuth, (req, res) => {
-  const { role } = req.body;
-  const user = mockData.updateUser(Number(req.params.id), { role });
-  if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
-  const { password_hash, ...safe } = user;
-  res.json(safe);
+app.put('/api/admin/users/:id/role', adminAuth, async (req, res) => {
+  try { const { role } = req.body; const { rows } = await pool.query('UPDATE users SET role = $1 WHERE id = $2 RETURNING id, name, email, phone, role, created_at, updated_at', [role, req.params.id]); if (!rows[0]) return res.status(404).json({ error: '\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d' }); res.json(rows[0]); }
+  catch (error) { console.error('PUT /api/admin/users/:id/role error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.delete('/api/admin/users/:id', adminAuth, (req, res) => {
-  mockData.deleteUser(Number(req.params.id));
-  res.json({ message: 'Пользователь удалён' });
+app.delete('/api/admin/users/:id', adminAuth, async (req, res) => {
+  try { await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]); res.json({ message: '\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u0443\u0434\u0430\u043b\u0451\u043d' }); }
+  catch (error) { console.error('DELETE /api/admin/users/:id error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.get('/api/admin/orders', adminAuth, (req, res) => {
-  const orders = mockData.getAllOrders();
-  const enriched = orders.map(o => {
-    const user = mockData.getUserById(o.user_id);
-    return { ...o, user_name: user ? user.name : 'Удалённый пользователь', user_email: user ? user.email : '' };
-  });
-  res.json(enriched);
+app.get('/api/admin/orders', adminAuth, async (req, res) => {
+  try {
+    const { rows: orders } = await pool.query('SELECT o.*, u.name AS user_name, u.email AS user_email FROM orders o LEFT JOIN users u ON o.user_id = u.id ORDER BY o.created_at DESC');
+    for (const order of orders) {
+      const { rows: items } = await pool.query('SELECT oi.*, b.title, a.name AS author_name, b.price AS book_price, b.image_url FROM order_items oi JOIN books b ON oi.book_id = b.id LEFT JOIN authors a ON b.author_id = a.id WHERE oi.order_id = $1', [order.id]);
+      order.items = items.map(item => ({ ...item, book: { id: item.book_id, title: item.title, author_name: item.author_name, price: item.book_price, image_url: item.image_url } }));
+      order.user_name = order.user_name || '\u0423\u0434\u0430\u043b\u0451\u043d\u043d\u044b\u0439 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c';
+      order.user_email = order.user_email || '';
+    }
+    res.json(orders);
+  } catch (error) { console.error('GET /api/admin/orders error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.patch('/api/admin/orders/:id/status', adminAuth, (req, res) => {
-  const { status } = req.body;
-  const order = mockData.updateOrderStatus(Number(req.params.id), status);
-  if (!order) return res.status(404).json({ error: 'Заказ не найден' });
-  res.json(order);
+app.patch('/api/admin/orders/:id/status', adminAuth, async (req, res) => {
+  try { const { status } = req.body; const { rows } = await pool.query('UPDATE orders SET status = $1 WHERE id = $2 RETURNING *', [status, req.params.id]); if (!rows[0]) return res.status(404).json({ error: '\u0417\u0430\u043a\u0430\u0437 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d' }); res.json(rows[0]); }
+  catch (error) { console.error('PATCH /api/admin/orders/:id/status error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.get('/api/admin/books', adminAuth, (req, res) => {
-  res.json(mockData.books);
+app.get('/api/admin/books', adminAuth, async (req, res) => {
+  try { const { rows } = await pool.query(`SELECT ${BOOK_SELECT} ${BOOK_JOIN} ORDER BY b.id`); res.json(rows); }
+  catch (error) { console.error('GET /api/admin/books error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.post('/api/admin/books', adminAuth, (req, res) => {
-  const book = mockData.createBook(req.body);
-  res.status(201).json(book);
+app.post('/api/admin/books', adminAuth, async (req, res) => {
+  try {
+    const { title, author_name, price, old_price, image_url, description, isbn, year, pages, language, stock, category_id } = req.body;
+    let authorId = null;
+    if (author_name) {
+      const { rows: ea } = await pool.query('SELECT id FROM authors WHERE name = $1', [author_name]);
+      if (ea[0]) authorId = ea[0].id;
+      else { const { rows: na } = await pool.query('INSERT INTO authors (name) VALUES ($1) RETURNING id', [author_name]); authorId = na[0].id; }
+    }
+    const { rows } = await pool.query("INSERT INTO books (title, author_id, category_id, price, old_price, image_url, description, isbn, year, pages, language, stock, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true) RETURNING *", [title, authorId, category_id || null, price, old_price || null, image_url || null, description || null, isbn || null, year || null, pages || null, language || '\u0420\u0443\u0441\u0441\u043a\u0438\u0439', stock || 0]);
+    const { rows: fb } = await pool.query(`SELECT ${BOOK_SELECT} ${BOOK_JOIN} WHERE b.id = $1`, [rows[0].id]);
+    res.status(201).json(fb[0]);
+  } catch (error) { console.error('POST /api/admin/books error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.put('/api/admin/books/:id', adminAuth, (req, res) => {
-  const book = mockData.updateBook(Number(req.params.id), req.body);
-  if (!book) return res.status(404).json({ error: 'Книга не найдена' });
-  res.json(book);
+app.put('/api/admin/books/:id', adminAuth, async (req, res) => {
+  try {
+    const { title, author_name, price, old_price, image_url, description, isbn, year, pages, language, stock, category_id, is_active } = req.body;
+    let authorId = null;
+    if (author_name) {
+      const { rows: ea } = await pool.query('SELECT id FROM authors WHERE name = $1', [author_name]);
+      if (ea[0]) authorId = ea[0].id;
+      else { const { rows: na } = await pool.query('INSERT INTO authors (name) VALUES ($1) RETURNING id', [author_name]); authorId = na[0].id; }
+    }
+    const updates = []; const values = []; let idx = 1;
+    if (title !== undefined) { updates.push('title = $' + idx++); values.push(title); }
+    if (authorId !== null) { updates.push('author_id = $' + idx++); values.push(authorId); }
+    if (category_id !== undefined) { updates.push('category_id = $' + idx++); values.push(category_id); }
+    if (price !== undefined) { updates.push('price = $' + idx++); values.push(price); }
+    if (old_price !== undefined) { updates.push('old_price = $' + idx++); values.push(old_price || null); }
+    if (image_url !== undefined) { updates.push('image_url = $' + idx++); values.push(image_url); }
+    if (description !== undefined) { updates.push('description = $' + idx++); values.push(description); }
+    if (isbn !== undefined) { updates.push('isbn = $' + idx++); values.push(isbn); }
+    if (year !== undefined) { updates.push('year = $' + idx++); values.push(year); }
+    if (pages !== undefined) { updates.push('pages = $' + idx++); values.push(pages); }
+    if (language !== undefined) { updates.push('language = $' + idx++); values.push(language); }
+    if (stock !== undefined) { updates.push('stock = $' + idx++); values.push(stock); }
+    if (is_active !== undefined) { updates.push('is_active = $' + idx++); values.push(is_active); }
+    if (updates.length === 0) return res.status(400).json({ error: '\u041d\u0435\u0442 \u0434\u0430\u043d\u043d\u044b\u0445 \u0434\u043b\u044f \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f' });
+    values.push(req.params.id);
+    await pool.query('UPDATE books SET ' + updates.join(', ') + ' WHERE id = $' + idx, values);
+    const { rows } = await pool.query(`SELECT ${BOOK_SELECT} ${BOOK_JOIN} WHERE b.id = $1`, [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: '\u041a\u043d\u0438\u0433\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430' });
+    res.json(rows[0]);
+  } catch (error) { console.error('PUT /api/admin/books/:id error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.delete('/api/admin/books/:id', adminAuth, (req, res) => {
-  mockData.deleteBook(Number(req.params.id));
-  res.json({ message: 'Книга удалена' });
+app.delete('/api/admin/books/:id', adminAuth, async (req, res) => {
+  try { await pool.query('DELETE FROM books WHERE id = $1', [req.params.id]); res.json({ message: '\u041a\u043d\u0438\u0433\u0430 \u0443\u0434\u0430\u043b\u0435\u043d\u0430' }); }
+  catch (error) { console.error('DELETE /api/admin/books/:id error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.get('/api/admin/promo', adminAuth, (req, res) => {
-  res.json(mockData.getPromoCodes());
+// === Admin Promo ===
+app.get('/api/admin/promo', adminAuth, async (req, res) => {
+  try { const { rows } = await pool.query('SELECT * FROM promo_codes ORDER BY id'); res.json(rows); }
+  catch (error) { console.error('GET /api/admin/promo error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.post('/api/admin/promo', adminAuth, (req, res) => {
-  const promo = mockData.createPromo(req.body);
-  res.status(201).json(promo);
+app.post('/api/admin/promo', adminAuth, async (req, res) => {
+  try {
+    const { code, discount_percent, discount_amount, min_order_amount, max_uses, valid_from, valid_until, is_active } = req.body;
+    const { rows } = await pool.query('INSERT INTO promo_codes (code, discount_percent, discount_amount, min_order_amount, max_uses, valid_from, valid_until, is_active) VALUES (UPPER($1), $2, $3, $4, $5, $6, $7, $8) RETURNING *', [code, discount_percent || null, discount_amount || null, min_order_amount || null, max_uses || null, valid_from || null, valid_until || null, is_active !== false]);
+    res.status(201).json(rows[0]);
+  } catch (error) { console.error('POST /api/admin/promo error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.put('/api/admin/promo/:id', adminAuth, (req, res) => {
-  const promo = mockData.updatePromo(Number(req.params.id), req.body);
-  if (!promo) return res.status(404).json({ error: 'Промокод не найден' });
-  res.json(promo);
+app.put('/api/admin/promo/:id', adminAuth, async (req, res) => {
+  try {
+    const { code, discount_percent, discount_amount, min_order_amount, max_uses, valid_from, valid_until, is_active } = req.body;
+    const { rows } = await pool.query('UPDATE promo_codes SET code = UPPER($1), discount_percent = $2, discount_amount = $3, min_order_amount = $4, max_uses = $5, valid_from = $6, valid_until = $7, is_active = $8 WHERE id = $9 RETURNING *', [code, discount_percent || null, discount_amount || null, min_order_amount || null, max_uses || null, valid_from || null, valid_until || null, is_active !== false, req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: '\u041f\u0440\u043e\u043c\u043e\u043a\u043e\u0434 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d' });
+    res.json(rows[0]);
+  } catch (error) { console.error('PUT /api/admin/promo/:id error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.delete('/api/admin/promo/:id', adminAuth, (req, res) => {
-  mockData.deletePromo(Number(req.params.id));
-  res.json({ message: 'Промокод удалён' });
+app.delete('/api/admin/promo/:id', adminAuth, async (req, res) => {
+  try { await pool.query('DELETE FROM promo_codes WHERE id = $1', [req.params.id]); res.json({ message: '\u041f\u0440\u043e\u043c\u043e\u043a\u043e\u0434 \u0443\u0434\u0430\u043b\u0451\u043d' }); }
+  catch (error) { console.error('DELETE /api/admin/promo/:id error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.get('/api/admin/reviews', adminAuth, (req, res) => {
-  const reviews = mockData.getAllReviews();
-  const enriched = reviews.map(r => {
-    const user = mockData.getUserById(r.user_id);
-    const book = mockData.books.find(b => b.id === r.book_id);
-    return { ...r, user_name: user ? user.name : 'Удалён', book_title: book ? book.title : 'Удалена' };
-  });
-  res.json(enriched);
+// === Admin Reviews ===
+app.get('/api/admin/reviews', adminAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT r.id, r.book_id, r.user_id, r.rating, r.comment, r.is_approved, r.created_at, u.name AS user_name, b.title AS book_title FROM reviews r LEFT JOIN users u ON r.user_id = u.id LEFT JOIN books b ON r.book_id = b.id ORDER BY r.created_at DESC');
+    res.json(rows.map(r => ({ ...r, user_name: r.user_name || '\u0423\u0434\u0430\u043b\u0451\u043d', book_title: r.book_title || '\u0423\u0434\u0430\u043b\u0435\u043d\u0430' })));
+  } catch (error) { console.error('GET /api/admin/reviews error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.delete('/api/admin/reviews/:id', adminAuth, (req, res) => {
-  mockData.deleteReview(Number(req.params.id));
-  res.json({ message: 'Отзыв удалён' });
+app.delete('/api/admin/reviews/:id', adminAuth, async (req, res) => {
+  try { await pool.query('DELETE FROM reviews WHERE id = $1', [req.params.id]); res.json({ message: '\u041e\u0442\u0437\u044b\u0432 \u0443\u0434\u0430\u043b\u0451\u043d' }); }
+  catch (error) { console.error('DELETE /api/admin/reviews/:id error:', error); res.status(500).json({ error: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' }); }
 });
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', mode: 'mock', timestamp: new Date().toISOString() });
+// === Health ===
+app.get('/api/health', async (req, res) => {
+  try { await pool.query('SELECT 1'); res.json({ status: 'ok', mode: 'postgresql', timestamp: new Date().toISOString() }); }
+  catch (error) { res.json({ status: 'error', mode: 'postgresql', error: error.message, timestamp: new Date().toISOString() }); }
 });
 
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log('Using mock data (no database required)');
+  console.log('Server running on http://localhost:' + PORT);
+  console.log('Using PostgreSQL database');
 });
