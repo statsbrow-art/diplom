@@ -164,7 +164,19 @@ CREATE TABLE user_addresses (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 14. Таблица логов активности
+-- 14. Таблица способов оплаты
+CREATE TABLE payment_methods (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(20) DEFAULT 'card',
+    card_number VARCHAR(20),
+    card_holder VARCHAR(255),
+    expiry_date VARCHAR(10),
+    is_default BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 15. Таблица логов активности
 CREATE TABLE activity_logs (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,

@@ -36,6 +36,12 @@ const stores = [
   { id: 8, name: 'BookStore ТЦ "Корона"', city: 'Минск', address: 'ул. Кальварийская, 24', phone: '+375 (29) 123-45-08', working_hours: '09:00 - 23:00', latitude: 53.8938, longitude: 27.5266 },
 ];
 
+let promoCodes = [
+  { id: 1, code: 'WELCOME10', discount_percent: 10, discount_amount: null, min_order_amount: 20, max_uses: 100, current_uses: 12, is_active: true, valid_from: '2024-01-01', valid_until: '2027-12-31', created_at: '2024-01-01T00:00:00Z' },
+  { id: 2, code: 'SUMMER25', discount_percent: 25, discount_amount: null, min_order_amount: 50, max_uses: 50, current_uses: 5, is_active: true, valid_from: '2024-06-01', valid_until: '2027-08-31', created_at: '2024-06-01T00:00:00Z' },
+  { id: 3, code: 'BOOK5', discount_percent: null, discount_amount: 5, min_order_amount: 30, max_uses: 200, current_uses: 45, is_active: true, valid_from: '2024-01-01', valid_until: '2027-12-31', created_at: '2024-03-15T00:00:00Z' },
+];
+
 let users = [];
 let orders = [];
 let orderItems = [];
@@ -49,6 +55,9 @@ let userIdCounter = 1;
 let orderIdCounter = 1;
 let addressIdCounter = 1;
 let paymentIdCounter = 1;
+let promoIdCounter = 4;
+let reviewIdCounter = 1;
+let bookIdCounter = 16;
 
 module.exports = {
   categories,
@@ -256,15 +265,100 @@ module.exports = {
   getReviewsByUser: (userId) => reviews.filter(r => r.user_id === userId),
   createReview: (review) => {
     const newReview = {
-      id: reviews.length + 1,
+      id: reviewIdCounter++,
       ...review,
-      is_approved: false,
+      is_approved: true,
       created_at: new Date().toISOString()
     };
     reviews.push(newReview);
+    const bookReviews = reviews.filter(r => r.book_id === review.book_id);
+    const book = books.find(b => b.id === review.book_id);
+    if (book && bookReviews.length > 0) {
+      book.rating = Number((bookReviews.reduce((sum, r) => sum + r.rating, 0) / bookReviews.length).toFixed(1));
+    }
     return newReview;
   },
   deleteReview: (id) => {
     reviews = reviews.filter(r => r.id !== id);
+  },
+  getAllReviews: () => reviews,
+  updateReview: (id, data) => {
+    const review = reviews.find(r => r.id === id);
+    if (review) Object.assign(review, data);
+    return review;
+  },
+
+  promoCodes,
+  getPromoCodes: () => promoCodes,
+  getPromoByCode: (code) => promoCodes.find(p => p.code === code.toUpperCase()),
+  getPromoById: (id) => promoCodes.find(p => p.id === id),
+  createPromo: (promo) => {
+    const newPromo = {
+      id: promoIdCounter++,
+      ...promo,
+      code: promo.code.toUpperCase(),
+      current_uses: 0,
+      created_at: new Date().toISOString()
+    };
+    promoCodes.push(newPromo);
+    return newPromo;
+  },
+  updatePromo: (id, data) => {
+    const promo = promoCodes.find(p => p.id === id);
+    if (promo) Object.assign(promo, data);
+    return promo;
+  },
+  deletePromo: (id) => {
+    promoCodes = promoCodes.filter(p => p.id !== id);
+  },
+
+  createBook: (bookData) => {
+    const category = categories.find(c => c.id === bookData.category_id);
+    const newBook = {
+      id: bookIdCounter++,
+      ...bookData,
+      category_name: category ? category.name : '',
+      category_slug: category ? category.slug : '',
+      rating: 0,
+      sales_count: 0,
+      is_active: true,
+      created_at: new Date().toISOString()
+    };
+    books.push(newBook);
+    return newBook;
+  },
+  updateBook: (id, data) => {
+    const book = books.find(b => b.id === id);
+    if (book) {
+      if (data.category_id) {
+        const category = categories.find(c => c.id === data.category_id);
+        if (category) {
+          data.category_name = category.name;
+          data.category_slug = category.slug;
+        }
+      }
+      Object.assign(book, data);
+    }
+    return book;
+  },
+  deleteBook: (id) => {
+    const idx = books.findIndex(b => b.id === id);
+    if (idx !== -1) books.splice(idx, 1);
+  },
+
+  getStats: () => {
+    const totalRevenue = orders.reduce((sum, o) => sum + Number(o.total_price), 0);
+    const totalOrders = orders.length;
+    const totalUsers = users.length;
+    const totalBooks = books.length;
+    const activeOrders = orders.filter(o => !['delivered', 'cancelled'].includes(o.status)).length;
+    const ordersByStatus = {};
+    orders.forEach(o => { ordersByStatus[o.status] = (ordersByStatus[o.status] || 0) + 1; });
+    const topBooks = [...books].sort((a, b) => b.sales_count - a.sales_count).slice(0, 5);
+    const recentOrders = [...orders].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5).map(o => ({
+      ...o,
+      items: orderItems.filter(oi => oi.order_id === o.id).map(oi => ({ ...oi, book: books.find(b => b.id === oi.book_id) }))
+    }));
+    return { totalRevenue, totalOrders, totalUsers, totalBooks, activeOrders, ordersByStatus, topBooks, recentOrders };
   },
 };
