@@ -1,0 +1,169 @@
+.stores-page {
+  padding: 40px 0;
+  min-height: calc(100vh - 200px);
+  background: #f8f9fa;
+}
+
+.stores-page h1 {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: #1a1a2e;
+  text-align: center;
+}
+
+.stores-subtitle {
+  text-align: center;
+  color: #666;
+  margin: 0 0 40px;
+  font-size: 16px;
+}
+
+.stores-layout {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 24px;
+  height: 600px;
+}
+
+.stores-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.stores-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.stores-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.stores-list::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+
+.store-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.store-card:hover {
+  border-color: #e0e0e0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.store-card.active {
+  border-color: #e94560;
+  background: #fff0f3;
+}
+
+.store-card h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 12px;
+  color: #1a1a2e;
+}
+
+.store-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.store-info-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #666;
+}
+
+.store-info-item svg {
+  color: #e94560;
+  flex-shrink: 0;
+}
+
+.open-map-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: #e94560;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.open-map-link:hover {
+  background: #d63850;
+}
+
+.stores-map {
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.stores-map iframe {
+  border-radius: 16px;
+  display: block;
+}
+
+.map-popup {
+  font-family: 'Inter', sans-serif;
+}
+
+.map-popup strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: #1a1a2e;
+}
+
+.map-popup p {
+  margin: 2px 0;
+  font-size: 13px;
+  color: #666;
+}
+
+@media (max-width: 992px) {
+  .stores-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .stores-list {
+    max-height: 300px;
+  }
+
+  .stores-map {
+    height: 400px;
+  }
+}
+
+@media (max-width: 576px) {
+  .stores-page h1 {
+    font-size: 24px;
+  }
+
+  .store-card {
+    padding: 16px;
+  }
+}
+
