@@ -1,61 +1,53 @@
 -- Добавление авторов
-INSERT INTO authors (name, biography, birth_year) VALUES
-('Джеймс Клир', 'Американский писатель, специалист по формированию привычек', 1986),
-('Джон Стрелеки', 'Американский писатель и спикер', 1969),
-('Михаил Булгаков', 'Русский писатель, драматург, театральный режиссёр и актёр', 1891),
-('Джордж Оруэлл', 'Английский писатель и публицист', 1903),
-('Дж. К. Роулинг', 'Британская писательница, автор серии книг о Гарри Поттере', 1965),
-('Даниэль Канеман', 'Израильско-американский психолог, лауреат Нобелевской премии', 1934),
-('Фёдор Достоевский', 'Русский писатель, мыслитель, философ и публицист', 1821),
-('Лев Толстой', 'Один из наиболее известных русских писателей и мыслителей', 1828),
-('Антуан де Сент-Экзюпери', 'Французский писатель, поэт, эссеист и профессиональный лётчик', 1900),
-('Юваль Ной Харари', 'Израильский военный историк-медиевист, профессор', 1976),
-('Джером Сэлинджер', 'Американский писатель', 1919),
-('Дж. Р. Р. Толкин', 'Английский писатель и филолог', 1892),
-('Стивен Кинг', 'Американский писатель, работающий в жанре ужасов', 1947),
-('Харуки Мураками', 'Японский писатель и переводчик', 1949),
-('Эрих Мария Ремарк', 'Немецкий писатель XX века', 1898);
+INSERT INTO authors (name) VALUES
+('Джеймс Клир'),
+('Джон Стрелеки'),
+('Михаил Булгаков'),
+('Джордж Оруэлл'),
+('Дж. К. Роулинг'),
+('Даниэль Канеман'),
+('Фёдор Достоевский'),
+('Лев Толстой'),
+('Антуан де Сент-Экзюпери'),
+('Юваль Ной Харари'),
+('Джером Сэлинджер'),
+('Дж. Р. Р. Толкин'),
+('Стивен Кинг'),
+('Харуки Мураками'),
+('Эрих Мария Ремарк');
 
 -- Добавление категорий
-INSERT INTO categories (name, slug, description, image_url) VALUES
-('Художественная литература', 'fiction', 'Романы, повести, рассказы', 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300'),
-('Нехудожественная литература', 'non-fiction', 'Научные, биографические и документальные книги', 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=300'),
-('Детские книги', 'children', 'Книги для детей всех возрастов', 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=300'),
-('Бизнес-литература', 'business', 'Книги по бизнесу, маркетингу, менеджменту', 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?w=300'),
-('Комиксы и манга', 'comics', 'Графические романы и манга', 'https://images.unsplash.com/photo-1601850494422-3cf14624b0b3?w=300'),
-('Учебная литература', 'education', 'Учебники и пособия', 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=300');
-
--- Добавление издательств
-INSERT INTO publishers (name, country, website) VALUES
-('АСТ', 'Россия', 'https://ast.ru'),
-('Эксмо', 'Россия', 'https://eksmo.ru'),
-('МИФ', 'Россия', 'https://mif.to'),
-('Альпина Паблишер', 'Россия', 'https://alpina.ru'),
-('Росмэн', 'Россия', 'https://rosman.ru');
+INSERT INTO categories (name, slug) VALUES
+('Художественная литература', 'fiction'),
+('Нехудожественная литература', 'non-fiction'),
+('Детские книги', 'children'),
+('Бизнес-литература', 'business'),
+('Комиксы и манга', 'comics'),
+('Учебная литература', 'education');
 
 -- Добавление книг
-INSERT INTO books (title, author_id, category_id, publisher_id, price, old_price, image_url, description, year, pages, rating, stock, sales_count) VALUES
-('Атомные привычки', 1, 2, 3, 17.85, 21.50, 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop', 'Маленькие изменения, которые приведут к большим результатам', 2024, 320, 4.8, 50, 150),
-('Кафе на краю земли', 2, 1, 1, 10.50, 13.12, 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=300&h=400&fit=crop', 'История о поиске смысла жизни', 2018, 192, 4.6, 35, 120),
-('Мастер и Маргарита', 3, 1, 1, 15.00, NULL, 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=300&h=400&fit=crop', 'Культовый роман о добре и зле', 2023, 480, 4.9, 100, 200),
-('1984', 4, 1, 2, 12.30, 14.50, 'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=300&h=400&fit=crop', 'Антиутопия о тоталитарном обществе', 2024, 352, 4.7, 80, 180),
-('Гарри Поттер и философский камень', 5, 3, 5, 22.00, 27.50, 'https://images.unsplash.com/photo-1589998059171-988d887df646?w=300&h=400&fit=crop', 'Первая книга о юном волшебнике', 2024, 432, 4.9, 60, 250),
-('Думай медленно... решай быстро', 6, 2, 3, 19.90, NULL, 'https://images.unsplash.com/photo-1550399105-c4db5fb85c18?w=300&h=400&fit=crop', 'О двух системах мышления человека', 2023, 656, 4.5, 40, 90),
-('Преступление и наказание', 7, 1, 1, 11.50, NULL, 'https://images.unsplash.com/photo-1476275466078-4007374efbbe?w=300&h=400&fit=crop', 'Психологический роман о преступлении и искуплении', 2023, 608, 4.8, 90, 130),
-('Война и мир', 8, 1, 2, 25.00, 30.00, 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?w=300&h=400&fit=crop', 'Эпический роман-эпопея', 2024, 1408, 4.9, 45, 110),
-('Маленький принц', 9, 3, 2, 8.50, NULL, 'https://images.unsplash.com/photo-1509021436665-8f07dbf5bf1d?w=300&h=400&fit=crop', 'Философская сказка о любви и дружбе', 2023, 96, 4.9, 120, 300),
-('Sapiens. Краткая история человечества', 10, 2, 4, 23.00, 28.00, 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=300&h=400&fit=crop', 'История развития человеческой цивилизации', 2024, 512, 4.7, 55, 140),
-('Над пропастью во ржи', 11, 1, 1, 9.80, NULL, 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?w=300&h=400&fit=crop', 'Роман о взрослении', 2023, 256, 4.4, 70, 85),
-('Хоббит', 12, 1, 1, 18.50, 22.00, 'https://images.unsplash.com/photo-1629992101753-56d196c8aabb?w=300&h=400&fit=crop', 'Приключенческое фэнтези', 2024, 416, 4.8, 65, 160),
-('Оно', 13, 1, 1, 28.00, 32.00, 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=300&h=400&fit=crop', 'Роман ужасов о противостоянии злу', 2023, 1152, 4.6, 30, 95),
-('Норвежский лес', 14, 1, 2, 14.50, NULL, 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=300&h=400&fit=crop', 'Роман о любви и потере', 2024, 384, 4.5, 40, 75),
-('Три товарища', 15, 1, 1, 13.20, 15.50, 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=300&h=400&fit=crop', 'Роман о дружбе и любви', 2023, 480, 4.8, 55, 125);
+INSERT INTO books (title, author_id, category_id, price, old_price, image_url, year, rating, stock, sales_count) VALUES
+('Атомные привычки', 1, 2, 17.85, 21.50, 'https://covers.openlibrary.org/b/isbn/9780735211292-L.jpg', 2024, 4.8, 50, 150),
+('Кафе на краю земли', 2, 1, 10.50, 13.12, 'https://covers.openlibrary.org/b/isbn/9780991392445-L.jpg', 2018, 4.6, 35, 120),
+('Мастер и Маргарита', 3, 1, 15.00, NULL, 'https://covers.openlibrary.org/b/isbn/9780143108276-L.jpg', 2023, 4.9, 100, 200),
+('1984', 4, 1, 12.30, 14.50, 'https://covers.openlibrary.org/b/isbn/9780451524935-L.jpg', 2024, 4.7, 80, 180),
+('Гарри Поттер и философский камень', 5, 3, 22.00, 27.50, 'https://covers.openlibrary.org/b/isbn/9780590353427-L.jpg', 2024, 4.9, 60, 250),
+('Думай медленно... решай быстро', 6, 2, 19.90, NULL, 'https://covers.openlibrary.org/b/isbn/9780374533557-L.jpg', 2023, 4.5, 40, 90),
+('Преступление и наказание', 7, 1, 11.50, NULL, 'https://covers.openlibrary.org/b/isbn/9780486415871-L.jpg', 2023, 4.8, 90, 130),
+('Война и мир', 8, 1, 25.00, 30.00, 'https://covers.openlibrary.org/b/isbn/9781400079988-L.jpg', 2024, 4.9, 45, 110),
+('Маленький принц', 9, 3, 8.50, NULL, 'https://covers.openlibrary.org/b/isbn/9780156012195-L.jpg', 2023, 4.9, 120, 300),
+('Sapiens. Краткая история человечества', 10, 2, 23.00, 28.00, 'https://covers.openlibrary.org/b/isbn/9780062316097-L.jpg', 2024, 4.7, 55, 140),
+('Над пропастью во ржи', 11, 1, 9.80, NULL, 'https://covers.openlibrary.org/b/isbn/9780316769488-L.jpg', 2023, 4.4, 70, 85),
+('Хоббит', 12, 1, 18.50, 22.00, 'https://covers.openlibrary.org/b/isbn/9780547928227-L.jpg', 2024, 4.8, 65, 160),
+('Оно', 13, 1, 28.00, 32.00, 'https://covers.openlibrary.org/b/isbn/9781501142970-L.jpg', 2023, 4.6, 30, 95),
+('Норвежский лес', 14, 1, 14.50, NULL, 'https://covers.openlibrary.org/b/isbn/9780375704024-L.jpg', 2024, 4.5, 40, 75),
+('Три товарища', 15, 1, 13.20, 15.50, 'https://covers.openlibrary.org/b/isbn/9780449912423-L.jpg', 2023, 4.8, 55, 125);
 
--- Добавление пользователей
+-- Добавление пользователей (пароль для всех: admin123)
 INSERT INTO users (email, password_hash, name, phone, role) VALUES
-('admin@bookstore.by', '$2a$10$rQnM1JwQyTxH8GpQk5dqzOoNvnDRnZbvQK3.vG8zY.v0TF4/DPVRC', 'Администратор', '+375291234567', 'admin'),
-('user@example.com', '$2a$10$rQnM1JwQyTxH8GpQk5dqzOoNvnDRnZbvQK3.vG8zY.v0TF4/DPVRC', 'Иван Петров', '+375291111111', 'customer'),
-('maria@example.com', '$2a$10$rQnM1JwQyTxH8GpQk5dqzOoNvnDRnZbvQK3.vG8zY.v0TF4/DPVRC', 'Мария Сидорова', '+375292222222', 'customer');
+('admin@bookstore.by', '$2a$10$7FKi.Wn7PUXRhPiXMkEXCeMc3YIFOmUA0oQjoUVMUsfhU6l7NCh66', 'Администратор', '+375291234567', 'admin'),
+('user@example.com', '$2a$10$7FKi.Wn7PUXRhPiXMkEXCeMc3YIFOmUA0oQjoUVMUsfhU6l7NCh66', 'Иван Петров', '+375291111111', 'customer'),
+('maria@example.com', '$2a$10$7FKi.Wn7PUXRhPiXMkEXCeMc3YIFOmUA0oQjoUVMUsfhU6l7NCh66', 'Мария Сидорова', '+375292222222', 'customer');
 
 -- Добавление магазинов
 INSERT INTO stores (name, city, address, phone, working_hours, latitude, longitude) VALUES
@@ -88,20 +80,14 @@ INSERT INTO favorites (user_id, book_id) VALUES
 (3, 2), (3, 9);
 
 -- Добавление адресов пользователей
-INSERT INTO user_addresses (user_id, city, street, building, apartment, postal_code, is_default) VALUES
-(2, 'Минск', 'пр-т Независимости', '100', '25', '220000', true),
-(3, 'Минск', 'ул. Немига', '5', '10', '220030', true);
-
--- Добавление подписчиков на рассылку
-INSERT INTO newsletter_subscribers (email, name) VALUES
-('subscriber1@example.com', 'Алексей'),
-('subscriber2@example.com', 'Елена'),
-('subscriber3@example.com', 'Дмитрий');
+INSERT INTO user_addresses (user_id, city, street, building, apartment, is_default) VALUES
+(2, 'Минск', 'пр-т Независимости', '100', '25', true),
+(3, 'Минск', 'ул. Немига', '5', '10', true);
 
 -- Добавление тестовых заказов
 INSERT INTO orders (order_number, user_id, total_price, delivery_price, delivery_method, delivery_city, delivery_address, delivery_phone, payment_method, status) VALUES
 ('ORD-001', 2, 45.35, 5.00, 'courier', 'Минск', 'пр-т Независимости, 100, кв. 25', '+375291111111', 'card', 'delivered'),
-('ORD-002', 3, 31.00, 0.00, 'pickup', 'Минск', 'ТЦ Галерея', '+375292222222', 'cash', 'completed');
+('ORD-002', 3, 22.50, 0.00, 'pickup', 'Минск', 'ТЦ "Галерея", пр-т Победителей, 9', '+375292222222', 'cash', 'processing');
 
 -- Добавление позиций заказов
 INSERT INTO order_items (order_id, book_id, quantity, price) VALUES
