@@ -29,11 +29,31 @@ const Auth: React.FC = () => {
       return;
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Неверный формат email');
+      setLoading(false);
+      return;
+    }
+
     if (!isLogin) {
       if (!name) {
         setError('Введите имя');
         setLoading(false);
         return;
+      }
+      if (!/^[A-Za-zА-Яа-яЁё\s-]+$/.test(name)) {
+        setError('Имя должно содержать только буквы');
+        setLoading(false);
+        return;
+      }
+      if (phone) {
+        const phoneDigits = phone.replace(/\D/g, '');
+        if (!phoneDigits.startsWith('375') || phoneDigits.length !== 12) {
+          setError('Телефон должен быть в формате +375 и содержать 9 цифр после кода');
+          setLoading(false);
+          return;
+        }
       }
       if (password !== confirmPassword) {
         setError('Пароли не совпадают');
@@ -99,7 +119,7 @@ const Auth: React.FC = () => {
                   type="text"
                   placeholder="Ваше имя"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => setName(e.target.value.replace(/[^A-Za-zА-Яа-яЁё\s-]/g, ''))}
                 />
               </div>
             )}
@@ -121,7 +141,18 @@ const Auth: React.FC = () => {
                   type="tel"
                   placeholder="+375 (29) 123-45-67"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const digits = val.replace(/\D/g, '');
+                    if (digits.length === 0) { setPhone(''); return; }
+                    let formatted = '+';
+                    if (digits.length <= 3) { formatted += digits; }
+                    else if (digits.length <= 5) { formatted += digits.slice(0, 3) + ' (' + digits.slice(3); }
+                    else if (digits.length <= 8) { formatted += digits.slice(0, 3) + ' (' + digits.slice(3, 5) + ') ' + digits.slice(5); }
+                    else if (digits.length <= 10) { formatted += digits.slice(0, 3) + ' (' + digits.slice(3, 5) + ') ' + digits.slice(5, 8) + '-' + digits.slice(8); }
+                    else { formatted += digits.slice(0, 3) + ' (' + digits.slice(3, 5) + ') ' + digits.slice(5, 8) + '-' + digits.slice(8, 10) + '-' + digits.slice(10, 12); }
+                    setPhone(formatted);
+                  }}
                 />
               </div>
             )}

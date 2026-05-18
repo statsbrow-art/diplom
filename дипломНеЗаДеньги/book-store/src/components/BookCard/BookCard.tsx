@@ -28,7 +28,7 @@ const BookCard: React.FC<BookCardProps> = ({ book }) => {
   return (
     <Link to={`/book/${book.id}`} className="book-card">
       <div className="book-card-image">
-        <img src={book.image} alt={book.title} />
+        <img src={book.image} alt={book.title} onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200x300?text=' + encodeURIComponent(book.title); }} />
         {book.discount && (
           <span className="book-discount">-{book.discount}%</span>
         )}

@@ -116,7 +116,7 @@ const BookDetails: React.FC = () => {
 
         <div className="book-details">
           <div className="book-details-image">
-            <img src={book.image} alt={book.title} />
+            <img src={book.image} alt={book.title} onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x450?text=' + encodeURIComponent(book.title); }} />
             {book.discount && book.discount > 0 && (
               <span className="book-discount">-{book.discount}%</span>
             )}

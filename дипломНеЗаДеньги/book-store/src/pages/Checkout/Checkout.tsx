@@ -60,13 +60,23 @@ const Checkout: React.FC = () => {
     const newErrors: Record<string, string> = {};
 
     if (deliveryMethod !== 'pickup') {
-      if (!address.trim()) newErrors.address = 'Введите адрес';
+      if (!address.trim()) {
+        newErrors.address = 'Введите адрес';
+      } else if (!/^[A-Za-zА-Яа-яЁё\s.,\-\/0-9]+$/.test(address.trim())) {
+        newErrors.address = 'Адрес содержит недопустимые символы';
+      }
       if (!city.trim()) newErrors.city = 'Выберите город';
+      if (apartment && !/^\d+$/.test(apartment.trim())) {
+        newErrors.apartment = 'Квартира должна содержать только цифры';
+      }
     }
     if (!phone.trim()) {
       newErrors.phone = 'Введите номер телефона';
-    } else if (!/^\+?[0-9]{10,13}$/.test(phone.replace(/[\s()-]/g, ''))) {
-      newErrors.phone = 'Неверный формат телефона';
+    } else {
+      const phoneDigits = phone.replace(/\D/g, '');
+      if (!phoneDigits.startsWith('375') || phoneDigits.length !== 12) {
+        newErrors.phone = 'Телефон должен быть в формате +375 и содержать 9 цифр после кода';
+      }
     }
 
     setErrors(newErrors);
@@ -267,7 +277,7 @@ const Checkout: React.FC = () => {
                           type="text"
                           placeholder="пр-т Независимости, 1"
                           value={address}
-                          onChange={(e) => setAddress(e.target.value)}
+                          onChange={(e) => setAddress(e.target.value.replace(/[^A-Za-zА-Яа-яЁё\s.,\-\/0-9]/g, ''))}
                           className={errors.address ? 'error' : ''}
                         />
                         {errors.address && <span className="error">{errors.address}</span>}
@@ -278,8 +288,9 @@ const Checkout: React.FC = () => {
                           type="text"
                           placeholder="12"
                           value={apartment}
-                          onChange={(e) => setApartment(e.target.value)}
+                          onChange={(e) => setApartment(e.target.value.replace(/\D/g, ''))}
                         />
+                        {errors.apartment && <span className="error">{errors.apartment}</span>}
                       </div>
                     </div>
                   </div>
@@ -308,7 +319,18 @@ const Checkout: React.FC = () => {
                         type="tel"
                         placeholder="+375 (29) 123-45-67"
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const digits = val.replace(/\D/g, '');
+                          if (digits.length === 0) { setPhone(''); return; }
+                          let formatted = '+';
+                          if (digits.length <= 3) { formatted += digits; }
+                          else if (digits.length <= 5) { formatted += digits.slice(0, 3) + ' (' + digits.slice(3); }
+                          else if (digits.length <= 8) { formatted += digits.slice(0, 3) + ' (' + digits.slice(3, 5) + ') ' + digits.slice(5); }
+                          else if (digits.length <= 10) { formatted += digits.slice(0, 3) + ' (' + digits.slice(3, 5) + ') ' + digits.slice(5, 8) + '-' + digits.slice(8); }
+                          else { formatted += digits.slice(0, 3) + ' (' + digits.slice(3, 5) + ') ' + digits.slice(5, 8) + '-' + digits.slice(8, 10) + '-' + digits.slice(10, 12); }
+                          setPhone(formatted);
+                        }}
                         className={errors.phone ? 'error' : ''}
                       />
                       {errors.phone && <span className="error">{errors.phone}</span>}

@@ -78,6 +78,8 @@ const Profile: React.FC = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const [editingPayment, setEditingPayment] = useState<PaymentMethod | null>(null);
+  const [paymentError, setPaymentError] = useState('');
+  const [addressError, setAddressError] = useState('');
 
   const [addressForm, setAddressForm] = useState({
     city: '',
@@ -192,7 +194,19 @@ const Profile: React.FC = () => {
   };
 
   const saveAddress = async () => {
-    if (!addressForm.city || !addressForm.street) return;
+    if (!addressForm.city || !addressForm.street) {
+      setAddressError('Заполните город и улицу');
+      return;
+    }
+    if (!/^[A-Za-zА-Яа-яЁё\s.,\-\/]+$/.test(addressForm.street)) {
+      setAddressError('Улица должна содержать только буквы');
+      return;
+    }
+    if (addressForm.apartment && !/^\d+$/.test(addressForm.apartment)) {
+      setAddressError('Квартира должна содержать только цифры');
+      return;
+    }
+    setAddressError('');
 
     try {
       if (editingAddress) {
@@ -263,19 +277,23 @@ const Profile: React.FC = () => {
   };
 
   const savePayment = async () => {
-    if (!paymentForm.card_number || !paymentForm.card_holder) return;
+    if (!paymentForm.card_number || !paymentForm.card_holder) {
+      setPaymentError('Заполните номер карты и имя держателя');
+      return;
+    }
     if (!validateCardNumber(paymentForm.card_number)) {
-      alert('Номер карты должен содержать 16 цифр');
+      setPaymentError('Номер карты должен содержать 16 цифр');
       return;
     }
     if (!validateCardHolder(paymentForm.card_holder)) {
-      alert('Имя держателя должно содержать только буквы');
+      setPaymentError('Имя держателя должно содержать только буквы');
       return;
     }
     if (paymentForm.expiry_date && !validateExpiryDate(paymentForm.expiry_date)) {
-      alert('Введите корректный срок действия карты (ММ/ГГ)');
+      setPaymentError('Введите корректный срок действия карты (ММ/ГГ), месяц от 1 до 12');
       return;
     }
+    setPaymentError('');
 
     try {
       if (editingPayment) {
@@ -722,6 +740,7 @@ const Profile: React.FC = () => {
               </button>
             </div>
             <div className="modal-body">
+              {addressError && <div className="settings-message error">{addressError}</div>}
               <div className="form-group">
                 <label>Город *</label>
                 <input
@@ -736,7 +755,7 @@ const Profile: React.FC = () => {
                 <input
                   type="text"
                   value={addressForm.street}
-                  onChange={e => setAddressForm({ ...addressForm, street: e.target.value })}
+                  onChange={e => setAddressForm({ ...addressForm, street: e.target.value.replace(/[^A-Za-zА-Яа-яЁё\s.,\-\/]/g, '') })}
                   placeholder="пр-т Независимости"
                 />
               </div>
@@ -755,7 +774,7 @@ const Profile: React.FC = () => {
                   <input
                     type="text"
                     value={addressForm.apartment}
-                    onChange={e => setAddressForm({ ...addressForm, apartment: e.target.value })}
+                    onChange={e => setAddressForm({ ...addressForm, apartment: e.target.value.replace(/\D/g, '') })}
                     placeholder="25"
                   />
                 </div>
@@ -783,6 +802,7 @@ const Profile: React.FC = () => {
               </button>
             </div>
             <div className="modal-body">
+              {paymentError && <div className="settings-message error">{paymentError}</div>}
               <div className="form-group">
                 <label>Номер карты *</label>
                 <input
