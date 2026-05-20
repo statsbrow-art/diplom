@@ -58,34 +58,14 @@ npm run dev --prefix client
 http://localhost:5173
 ```
 
-## 4. Cloudflare Tunnel
-
-Базу данных через tunnel открывать не нужно. PostgreSQL остаётся локально на компьютере, backend подключается к ней через `DATABASE_URL`, а наружу через Cloudflare Tunnel отдаётся сайт вместе с API.
-
-Самый простой вариант — открыть tunnel на frontend Vite:
-
-```bat
-cloudflared tunnel --url http://localhost:5173
-```
-
-Vite проксирует запросы `/api` на backend `http://localhost:4000`, поэтому по публичной ссылке Cloudflare будут работать и сайт, и API.
-
-Если делаешь отдельный tunnel на backend, добавь публичный URL сайта в `server\.env` в `CORS_ORIGIN`, например:
-
-```env
-CORS_ORIGIN="http://localhost:5173,https://your-site.trycloudflare.com"
-```
-
-После изменения `.env` backend нужно перезапустить.
-
-## 5. Демо-аккаунты
+## 4. Демо-аккаунты
 
 | Роль | Email | Пароль |
 |---|---|---|
 | Админ | `admin@demo.local` | `admin123` |
 | Пользователь | `user@demo.local` | `user123` |
 
-## 6. Если PowerShell запрещает сценарии
+## 5. Если PowerShell запрещает сценарии
 
 Используй `cmd` или пиши `npm.cmd` вместо `npm`:
 

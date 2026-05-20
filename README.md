@@ -74,22 +74,6 @@ npm run dev                # http://localhost:5173
 ### Localization
 - RU and EN — switcher in the header
 
-## Cloudflare Tunnel
-
-PostgreSQL should remain local/private. Expose the Vite site through Cloudflare Tunnel; the frontend proxies `/api` to the local backend:
-
-```bash
-npm run dev --prefix server
-npm run dev --prefix client
-cloudflared tunnel --url http://localhost:5173
-```
-
-If the API is exposed separately, add the public site URL to `server/.env`:
-
-```env
-CORS_ORIGIN="http://localhost:5173,https://your-site.trycloudflare.com"
-```
-
 ## Optional external events format
 
 Set `BELARUS_EVENTS_API_URL` to a JSON endpoint returning either an array or `{ "events": [...] }`.
