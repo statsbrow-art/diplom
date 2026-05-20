@@ -1,0 +1,190 @@
+// Prisma schema for Sports Ticket Manager
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum EventStatus {
+  SCHEDULED
+  ON_SALE
+  CANCELLED
+  FINISHED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PAID
+  REFUNDED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(USER)
+  blocked      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  orders       Order[]
+  paymentCards PaymentCard[]
+  waitlistSubscriptions WaitlistSubscription[]
+}
+
+model Sport {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  icon      String?
+  events    Event[]
+  createdAt DateTime @default(now())
+}
+
+model Venue {
+  id        String    @id @default(cuid())
+  name      String
+  city      String
+  address   String
+  sectors   Sector[]
+  events    Event[]
+  createdAt DateTime  @default(now())
+}
+
+model Sector {
+  id           String        @id @default(cuid())
+  venueId      String
+  venue        Venue         @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  name         String
+  rows         Int
+  seatsPerRow  Int
+  ticketTypes  TicketType[]
+  @@unique([venueId, name])
+}
+
+model Event {
+  id           String        @id @default(cuid())
+  title        String
+  description  String?
+  source       String?
+  sourceUrl    String?
+  externalId   String?
+  sportId      String
+  sport        Sport         @relation(fields: [sportId], references: [id])
+  venueId      String
+  venue        Venue         @relation(fields: [venueId], references: [id])
+  startsAt     DateTime
+  status       EventStatus   @default(ON_SALE)
+  ticketTypes  TicketType[]
+  waitlistSubscriptions WaitlistSubscription[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([source, externalId])
+}
+
+model TicketType {
+  id          String       @id @default(cuid())
+  eventId     String
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  sectorId    String
+  sector      Sector       @relation(fields: [sectorId], references: [id])
+  name        String       // e.g. "VIP", "Standard"
+  price       Decimal      @db.Decimal(10, 2)
+  orderItems  OrderItem[]
+  @@unique([eventId, sectorId, name])
+}
+
+model Order {
+  id         String       @id @default(cuid())
+  userId     String
+  user       User         @relation(fields: [userId], references: [id])
+  total      Decimal      @db.Decimal(10, 2)
+  status     OrderStatus  @default(PENDING)
+  discount   Decimal      @default(0) @db.Decimal(10, 2)
+  promoCodeId String?
+  promoCode  PromoCode?   @relation(fields: [promoCodeId], references: [id])
+  payment    Payment?
+  items      OrderItem[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+
+model OrderItem {
+  id            String      @id @default(cuid())
+  orderId       String
+  order         Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ticketTypeId  String
+  ticketType    TicketType  @relation(fields: [ticketTypeId], references: [id])
+  seatRow       Int
+  seatNumber    Int
+  price         Decimal     @db.Decimal(10, 2)
+  ticketCode    String      @unique
+  refunded      Boolean     @default(false)
+  // A specific seat for a given event must be unique across all order items
+  // (we filter by paid/pending orders in app logic to avoid double-booking).
+  @@unique([ticketTypeId, seatRow, seatNumber])
+}
+
+model PromoCode {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  description String?
+  percentOff  Int
+  active      Boolean  @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  orders      Order[]
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  orderId   String        @unique
+  order     Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount    Decimal       @db.Decimal(10, 2)
+  discount  Decimal       @default(0) @db.Decimal(10, 2)
+  cardBrand String?
+  cardLast4 String?
+  status    PaymentStatus @default(PAID)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model WaitlistSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  notifyBy  String   @default("email")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, eventId])
+}
+
+model PaymentCard {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holder      String
+  brand       String
+  last4       String
+  expiryMonth Int
+  expiryYear  Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
