@@ -1,7 +1,7 @@
 # Sports Ticket Manager
 
-Веб-система продажи билетов на спортивные события с PostgreSQL-базой данных, выбором мест, QR-билетами, оплатой и админ-панелью.
-Sports ticket manager with PostgreSQL, seat selection, QR tickets, checkout and admin panel.
+Веб-менеджер билетов на спортивные события с PostgreSQL-базой данных, выбором мест, QR-билетами и админ-панелью.
+Sports ticket manager with PostgreSQL, seat selection, QR tickets and admin panel.
 
 ## Stack
 - **Frontend:** React 19 + Vite + TypeScript + React Router + TailwindCSS + i18next (RU/EN)
@@ -18,16 +18,12 @@ Sports ticket manager with PostgreSQL, seat selection, QR tickets, checkout and 
 
 ## Quick start
 
-### 1. Database (local PostgreSQL)
-
-Install PostgreSQL locally (version 14+) and create the user and database:
-
+### 1. Database
+Install PostgreSQL and create a database:
 ```bash
 sudo -u postgres psql -c "CREATE USER ticket WITH PASSWORD 'ticket' SUPERUSER;"
 sudo -u postgres psql -c "CREATE DATABASE ticketdb OWNER ticket;"
 ```
-
-Make sure PostgreSQL is running and accessible at `localhost:5432`.
 
 ### 2. Backend
 ```bash
@@ -35,7 +31,7 @@ cd server
 cp .env.example .env
 npm install
 npm run prisma:migrate     # creates tables
-npm run seed               # fills SQL database with users, events, venues, cards and orders
+npm run seed               # fills SQL database with users, events, venues, cards, orders and support data
 npm run dev                # http://localhost:4000
 ```
 
@@ -60,8 +56,7 @@ npm run dev                # http://localhost:5173
 - SQL-backed catalog with BYN prices, venues and sports
 - Event page with sector picker and seat selection
 - Cart and checkout (simulated payment)
-- Successful payment page
-- Profile with order history, cards and tickets (unique ticket codes)
+- Profile with order history and tickets (unique ticket codes)
 
 ### Admin
 - Sales dashboard
@@ -69,7 +64,6 @@ npm run dev                # http://localhost:5173
 - Import and select external CIS sports events
 - User management (role, block/unblock)
 - View all orders
-- Promo codes, QR ticket check and waitlist notifications
 
 ### Localization
 - RU and EN — switcher in the header
