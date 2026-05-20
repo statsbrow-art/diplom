@@ -1,6 +1,13 @@
-echo "node_modules/" > .gitignore
-echo "dist/" >> .gitignore
-echo "build/" >> .gitignore
-echo ".env" >> .gitignore
-echo ".env.local" >> .gitignore
-echo "*.log" >> .gitignore
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+.DS_Store
+.vscode/
+.idea/
+coverage/
+client/dist/
+server/dist/
+client/.vite/
