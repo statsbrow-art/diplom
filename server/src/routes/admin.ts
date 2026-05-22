@@ -506,7 +506,7 @@ router.post('/waitlist/:id/notify', async (req, res, next) => {
     if (!subscription) return res.status(404).json({ error: 'Subscription not found' });
 
     const { sendWaitlistNotification } = await import('../services/mailer.js');
-    await sendWaitlistNotification(
+    const result = await sendWaitlistNotification(
       subscription.user.email,
       subscription.user.name,
       subscription.event.title,
@@ -520,6 +520,7 @@ router.post('/waitlist/:id/notify', async (req, res, next) => {
     res.json({
       subscription: updated,
       message: `Уведомление отправлено на ${subscription.user.email} о событии: ${subscription.event.title}.`,
+      previewUrl: result.previewUrl,
     });
   } catch (err) {
     next(err);
