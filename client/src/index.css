@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply text-slate-900 antialiased;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(96, 165, 250, 0.24), transparent 34rem),
+    radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.14), transparent 30rem),
+    radial-gradient(circle at 50% 100%, rgba(37, 99, 235, 0.11), transparent 34rem),
+    linear-gradient(180deg, #f8fbff 0%, #eef6ff 48%, #eaf1ff 100%);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(37, 99, 235, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.055) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, black, transparent 72%);
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:text-base;
+  }
+  .btn-primary {
+    @apply btn bg-gradient-to-r from-brand-600 to-sky-400 text-white shadow-lg shadow-brand-500/25 hover:shadow-xl hover:shadow-brand-500/30;
+  }
+  .btn-outline {
+    @apply btn border border-brand-200 bg-white/85 text-slate-700 shadow-sm hover:border-brand-400 hover:bg-brand-50 hover:text-brand-800;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700;
+  }
+  .input {
+    @apply w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-400 sm:px-4;
+  }
+  .card {
+    @apply rounded-[1.5rem] border border-brand-100/80 bg-white/90 shadow-xl shadow-brand-900/10 backdrop-blur sm:rounded-3xl;
+  }
+  .label {
+    @apply block text-sm font-medium text-slate-600 mb-1;
+  }
+  .badge {
+    @apply inline-block rounded-full px-3 py-1 text-xs font-bold;
+  }
+  .hero-card {
+    @apply rounded-[2rem] border border-brand-100 bg-gradient-to-br from-brand-700 via-brand-600 to-sky-400 shadow-2xl shadow-brand-900/20;
+  }
+  .glass-card {
+    @apply rounded-[1.75rem] border border-white/40 bg-white/20 shadow-2xl shadow-brand-900/20 backdrop-blur;
+  }
+  .section-card {
+    @apply rounded-[1.5rem] border border-brand-100/80 bg-white/90 shadow-xl shadow-brand-900/10 backdrop-blur sm:rounded-[1.75rem];
+  }
+  .section-kicker {
+    @apply text-xs font-black uppercase tracking-[0.18em] text-brand-600 sm:text-sm sm:tracking-[0.25em];
+  }
+  .stat-card {
+    @apply rounded-3xl border border-brand-100/80 bg-white/90 p-5 shadow-xl shadow-brand-900/10 backdrop-blur transition hover:-translate-y-1 hover:shadow-2xl;
+  }
+  .feature-card {
+    @apply rounded-3xl border border-brand-100/80 bg-white/90 p-6 shadow-xl shadow-brand-900/10 backdrop-blur transition hover:-translate-y-1;
+  }
+  .feature-card h2 {
+    @apply mt-4 text-xl font-bold text-slate-900;
+  }
+  .feature-card p {
+    @apply mt-2 text-sm leading-6 text-slate-600;
+  }
+  .feature-icon {
+    @apply grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-600 to-sky-400 text-xl font-black text-white;
+  }
+  .event-tile {
+    @apply rounded-3xl border border-brand-100/80 bg-gradient-to-br from-white to-brand-50 p-5 shadow-sm shadow-brand-900/10 transition hover:-translate-y-1 hover:border-brand-300 hover:shadow-xl;
+  }
+  .event-tile h3 {
+    @apply mt-3 text-lg font-bold;
+  }
+  .event-tile p {
+    @apply mt-1 text-sm text-slate-600;
+  }
+  .venue-card {
+    @apply rounded-[1.75rem] border border-brand-100/80 bg-white/90 p-6 shadow-xl shadow-brand-900/10 backdrop-blur transition hover:-translate-y-1;
+  }
+  .profile-hero {
+    @apply rounded-[2rem] border border-brand-100 bg-gradient-to-br from-brand-700 via-brand-600 to-sky-400 shadow-2xl shadow-brand-900/20;
+  }
+  .payment-card-preview {
+    @apply rounded-[1.75rem] bg-gradient-to-br from-brand-800 via-brand-600 to-sky-400 p-5 text-white shadow-2xl shadow-brand-900/20;
+  }
+}
