@@ -501,16 +501,25 @@ router.post('/waitlist/:id/notify', async (req, res, next) => {
   try {
     const subscription = await prisma.waitlistSubscription.findUnique({
       where: { id: req.params.id },
-      include: { event: true },
+      include: { event: true, user: true },
     });
     if (!subscription) return res.status(404).json({ error: 'Subscription not found' });
+
+    const { sendWaitlistNotification } = await import('../services/mailer.js');
+    await sendWaitlistNotification(
+      subscription.user.email,
+      subscription.user.name,
+      subscription.event.title,
+      subscription.event.startsAt.toLocaleDateString('ru-RU'),
+    );
+
     const updated = await prisma.waitlistSubscription.update({
       where: { id: subscription.id },
       data: { active: false },
     });
     res.json({
       subscription: updated,
-      message: `Пользователь отмечен как уведомлённый о событии: ${subscription.event.title}.`,
+      message: `Уведомление отправлено на ${subscription.user.email} о событии: ${subscription.event.title}.`,
     });
   } catch (err) {
     next(err);
